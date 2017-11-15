@@ -24,6 +24,7 @@ library
     , mwc-random
     , optparse-applicative
     , primitive
+    , semigroups
     , split
     , transformers
     , vector
@@ -49,6 +50,7 @@ executable pituitary
     , optparse-applicative
     , pituitary
     , primitive
+    , semigroups
     , split
     , transformers
     , vector
