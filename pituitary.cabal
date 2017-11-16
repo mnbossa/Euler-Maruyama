@@ -27,6 +27,8 @@ library
   exposed-modules:
       EuMa.Main
   other-modules:
+      EuMa.Pituitary
+      EuMa.Types
       Paths_pituitary
   default-language: Haskell2010
 
