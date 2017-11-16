@@ -63,18 +63,11 @@ global = Global { stepSize = step, simTime = time, totalSteps = steps, totalSpik
 
 main :: IO ()
 main = do
-
-     let helpText = "Generate predictions from a stochastic model for the activity of a pituitary lactotroph as described in the paper " ++
-                    "\"Fast-Activating Voltage- and Calcium-Dependent Potassium (BK) Conductance Promotes Bursting in Pituitary Cells\", " ++
-                    "J. Tabak, M. Tomaiuolo, A.E. Gonzalez-Iglesias, L.S. Milescu, R. Bertram, the Journal of Neuroscience, 31:16855-16863, 2011." ++
-                    "\n \nUsage:\n    ./pitt-cells file [OPTIONS]     \n Produce 4 .png files (the images of each variable trajectory vs. time) and a .txt file (spike lengths: number of time-step) using a fixed simulation time.\n" ++
-                             "\n \n    ./pitt-cells file.fig [OPTIONS] \n Produce 4 .fig files as above, but where fig is one of the following: png, pdf, jpg, jpeg. No txt file is produced." ++
-                             "\n \n    ./pitt-cells file.txt [OPTIONS] \n Produce only txt file. Simulation is run until a fixed number of spikes is obtained."
      -- ask user file name and parameters to be changed
      --AllParams{..} <- cmdArgs $ (AllParams paramsInit globalInit) -- paramsInit
      parameters <- cmdArgs $ paramsInit
                              &= help helpText
-                             &= program "pitt-cells"
+                             &= program "pituitary"
                              &= summary "Pituitary cell electrical dynamic simulator v0.1.0"
 
      gen  <- createSystemRandom
@@ -123,6 +116,22 @@ main = do
          --Right _ <- file ( figname ++ "Ca." ++ figext) $ figCa
 
          return ()
+
+helpText :: String
+helpText = "\
+\Generate predictions from a stochastic model for the activity of a pituitary \
+\lactotroph as described in the paper Fast-Activating Voltage- and \
+\Calcium-Dependent Potassium (BK) Conductance Promotes Bursting in Pituitary \
+\Cells, J. Tabak, M. Tomaiuolo, A.E. Gonzalez-Iglesias, L.S. Milescu, R. \
+\Bertram, the Journal of Neuroscience, 31:16855-16863, 2011. \n\
+\\n  Usage:\n    ./pituitary file [OPTIONS]     \n   Produce 4 .png files \
+\(the images of each variable trajectory vs. time) and a .txt file (spike \
+\lengths: number of time-step) using a fixed simulation time.\n \n \n\
+\   ./pituitary file.fig [OPTIONS] \n Produce 4 .fig files as above, \
+\but where fig is one of the following: png, pdf, jpg, jpeg. No txt \
+\file is produced.\n \n    ./pituitary file.txt [OPTIONS] \n \
+\ Produce only txt file. Simulation is run until a fixed number of spikes \
+\is obtained."
 
 {-
 
