@@ -5,7 +5,7 @@
 module EuMa.Main where
 
 import System.Console.CmdArgs
-import Data.List (intercalate, zip4)
+import Data.List (intercalate, zip5)
 import Data.List.Split (splitWhen)
 -- import System.Environment --args <- getArgs
 import Control.Monad (unless)
@@ -71,9 +71,7 @@ peaks gen parameters = do
   let threshold = -35
       compLenSpikes =  if totalSpikes global == 0 then lengthSpikes     (totalSteps  global)
                                                   else lengthSpikesUpTo (totalSpikes global)
-  lenSpikes <- runReaderT (compLenSpikes initVar threshold ) (In parameters global gen)
-
-  BS.putStr $ encode $ map Only lenSpikes
+  runReaderT (compLenSpikes initVar threshold ) (In parameters global gen)
 
 curves gen parameters = do
   traj <- runReaderT (simulate (totalSteps global) initVar) $ In parameters global gen
@@ -86,8 +84,8 @@ curves gen parameters = do
     everynth k xs = y:(everynth k ys) where y:ys = drop (k-1) xs
     t =  map ((dtPlot*) . fromIntegral) [1..nPlot]
     Variables{..} = sequenceA $ (take nPlot . everynth nskip) traj
+  return (t, varV, varn, varf, varCa)
 
-  BS.putStr $ encode $ zip4 varV varn varf varCa
 
 main :: IO ()
 main = do
@@ -101,8 +99,11 @@ main = do
      gen  <- createSystemRandom
 
      case subcommand of
-       Peaks params -> peaks gen params
-       Curves params -> curves gen params
+       Peaks params -> peaks gen params >>= BS.putStr . encode . map Only
+       Curves params -> curves gen params >>= BS.putStr . encode . uzip5
+
+  where
+    uzip5 (t,varV,varn,varf,varCa) = zip5 t varV varn varf varCa
 
 
 helpText :: String
