@@ -4,9 +4,9 @@ module EuMa.Types where
 
 import System.Console.CmdArgs
 
+
 data Parameters =
-  Parameters { filename :: String
-             , cm :: Double      -- (pF) Membrane capacitance
+  Parameters {  cm :: Double      -- (pF) Membrane capacitance
              , gcal :: Double    -- (nS) Maximal conductance of Ca^2+ channels
              , vca :: Double     -- (mV) Reversal potential for Ca^2+ channels
              , vm :: Double      -- (mV) Voltage value at midpoint of m_\inf

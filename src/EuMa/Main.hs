@@ -1,26 +1,31 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
-
---{-# LANGUAGE ExtendedDefaultRules #-} -- for Matplotlib
+{-# LANGUAGE DeriveDataTypeable #-} -- for CmdArgs
 
 module EuMa.Main where
 
 import System.Console.CmdArgs
-import Data.List (intercalate)
+import Data.List (intercalate, zip4)
 import Data.List.Split (splitWhen)
 -- import System.Environment --args <- getArgs
 import Control.Monad (unless)
 import System.Random.MWC (createSystemRandom)
 import Control.Monad.Trans.Reader (runReaderT)
+import Data.Csv (encode, Only(..))
+import qualified Data.ByteString.Lazy as BS
 import EuMa.Types
 import EuMa.Pituitary
 
+data SubCommand =
+  Peaks Parameters | Curves Parameters
+    deriving (Data, Typeable, Show, Eq)
+
 ------------------ Simulation parameters -------------------------------------------------------------
 -- Default parameter values
+
 paramsInit :: Parameters
 paramsInit =
-  Parameters { filename = "out" &= typ "filename" &= argPos 0 ,
-               cm = 10        &= help "( 10 pF) Membrane capacitance",
+  Parameters { cm = 10        &= help "( 10 pF) Membrane capacitance",
                gcal = 2       &= help "(  2 nS) Maximal conductance of Ca^2+ channels",
                vca = 60       &= help "( 60 mV) Reversal potential for Ca^2+ channels",
                vm = (-20)     &= help "(-20 mV) Voltage value at midpoint of m_inf",
@@ -61,61 +66,44 @@ global = Global { stepSize = step, simTime = time, totalSteps = steps, totalSpik
 
 --data AllParams = AllParams { parameters :: Parameters, global :: Global }  deriving (Data,Typeable,Show,Eq)
 
+peaks gen parameters = do
+  -- more than 2x faster
+  let threshold = -35
+      compLenSpikes =  if totalSpikes global == 0 then lengthSpikes     (totalSteps  global)
+                                                  else lengthSpikesUpTo (totalSpikes global)
+  lenSpikes <- runReaderT (compLenSpikes initVar threshold ) (In parameters global gen)
+
+  BS.putStr $ encode $ map Only lenSpikes
+
+curves gen parameters = do
+  traj <- runReaderT (simulate (totalSteps global) initVar) $ In parameters global gen
+
+  let
+    nPlot         = 5000 :: Int
+    nskip         = totalSteps global `div` nPlot
+    dtPlot        = (stepSize global)*(fromIntegral nskip)
+
+    everynth k xs = y:(everynth k ys) where y:ys = drop (k-1) xs
+    t =  map ((dtPlot*) . fromIntegral) [1..nPlot]
+    Variables{..} = sequenceA $ (take nPlot . everynth nskip) traj
+
+  BS.putStr $ encode $ zip4 varV varn varf varCa
+
 main :: IO ()
 main = do
      -- ask user file name and parameters to be changed
      --AllParams{..} <- cmdArgs $ (AllParams paramsInit globalInit) -- paramsInit
-     parameters <- cmdArgs $ paramsInit
-                             &= help helpText
-                             &= program "pituitary"
-                             &= summary "Pituitary cell electrical dynamic simulator v0.1.0"
+     subcommand <- cmdArgs $ modes [Peaks paramsInit, Curves paramsInit]
+                            &= help helpText
+                            &= program "pituitary"
+                            &= summary "Pituitary cell electrical dynamic simulator v0.1.0"
 
      gen  <- createSystemRandom
 
-     let fname     = filename parameters
-         ext       = last $ splitWhen (== '.') fname
-         threshold = -35
-         hasFigExt = any (ext ==) ["png", "pdf", "jpg", "jpeg"]
+     case subcommand of
+       Peaks params -> peaks gen params
+       Curves params -> curves gen params
 
-     if ext == "txt" then
-       do
-         -- more than 2x faster
-         let compLenSpikes =  if totalSpikes global == 0 then lengthSpikes     (totalSteps  global)
-                                                         else lengthSpikesUpTo (totalSpikes global)
-         lenSpikes <- runReaderT (compLenSpikes initVar threshold ) (In parameters global gen)
-
-         writeFile fname $ intercalate ", " (map show lenSpikes)
-         return ()
-      else
-       do
-         traj <- runReaderT (simulate (totalSteps global) initVar) $ In parameters global gen
-
-         unless hasFigExt $ let lenSpikes = filter (>1) $ length <$> splitWhen  (< threshold) (varV <$> traj)
-                            in  writeFile (fname ++ ".txt") $ intercalate ", " (map show lenSpikes)
-
-         let
-           nPlot         = 5000 :: Int
-           nskip         = totalSteps global `div` nPlot
-           dtPlot        = (stepSize global)*(fromIntegral nskip)
-
-           everynth k xs = y:(everynth k ys) where y:ys = drop (k-1) xs
-           t =  map ((dtPlot*) . fromIntegral) [1..nPlot]
-           Variables{..} = sequenceA $ (take nPlot . everynth nskip) traj
-
-           --figV = plot t varV  % xlabel "time (ms)" % title "V (membrane potential)" % ylabel "mV"
-           --fign = plot t varn  % xlabel "time (ms)" % title "n (activation of $I_K$)"
-           --figf = plot t varf  % xlabel "time (ms)" % title "f (activation of $I_{BK}$)"
-           --figCa= plot t varCa % xlabel "time (ms)" % title "[Ca] (intracellular Ca$^{2+}$ concentration)"
-
-         let figname = take (length fname - (if hasFigExt then length ext + 1 else 0)) fname
-             figext  = if hasFigExt then ext else "png"
-
-         --Right _ <- file ( figname ++  "V." ++ figext) $ figV
-         --Right _ <- file ( figname ++  "n." ++ figext) $ fign
-         --Right _ <- file ( figname ++  "f." ++ figext) $ figf
-         --Right _ <- file ( figname ++ "Ca." ++ figext) $ figCa
-
-         return ()
 
 helpText :: String
 helpText = "\
