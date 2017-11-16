@@ -8,7 +8,7 @@ category: Science
 extra-source-files:
   - CHANGELOG.md
 
-ghc-options: -Wall
+ghc-options: -Wall -O2 # -ddump-simpl -dsuppress-all
 
 dependencies:
   - base >= 4.7 && < 5
