@@ -18,13 +18,15 @@ library
       src
   ghc-options: -Wall -O2
   build-depends:
-      base >=4.7 && <5
+      async
+    , base >=4.7 && <5
     , bytestring
     , cassava
     , mwc-random
     , optparse-applicative
     , pipes
     , pipes-bytestring
+    , pipes-concurrency
     , pipes-csv
     , primitive
     , split
@@ -43,15 +45,17 @@ executable pituitary
   main-is: Main.hs
   hs-source-dirs:
       driver
-  ghc-options: -Wall -O2
+  ghc-options: -Wall -O2 -threaded -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      async
+    , base >=4.7 && <5
     , bytestring
     , cassava
     , mwc-random
     , optparse-applicative
     , pipes
     , pipes-bytestring
+    , pipes-concurrency
     , pipes-csv
     , pituitary
     , primitive

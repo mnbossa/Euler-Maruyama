@@ -4,9 +4,9 @@ let
 
   inherit (nixpkgs) pkgs;
 
-  f = { mkDerivation, base, bytestring, cassava, mwc-random
-      , optparse-applicative, pipes, pipes-bytestring, pipes-csv
-      , primitive, split, stdenv, transformers, vector
+  f = { mkDerivation, async, base, bytestring, cassava, mwc-random
+      , optparse-applicative, pipes, pipes-bytestring, pipes-concurrency
+      , pipes-csv, primitive, split, stdenv, transformers, vector
       }:
       mkDerivation {
         pname = "pituitary";
@@ -15,12 +15,14 @@ let
         isLibrary = true;
         isExecutable = true;
         libraryHaskellDepends = [
-          base bytestring cassava mwc-random optparse-applicative pipes
-          pipes-bytestring pipes-csv primitive split transformers vector
+          async base bytestring cassava mwc-random optparse-applicative pipes
+          pipes-bytestring pipes-concurrency pipes-csv primitive split
+          transformers vector
         ];
         executableHaskellDepends = [
-          base bytestring cassava mwc-random optparse-applicative pipes
-          pipes-bytestring pipes-csv primitive split transformers vector
+          async base bytestring cassava mwc-random optparse-applicative pipes
+          pipes-bytestring pipes-concurrency pipes-csv primitive split
+          transformers vector
         ];
         description = "Reimplementation of R. Bertram works.";
         license = stdenv.lib.licenses.mit;

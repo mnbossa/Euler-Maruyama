@@ -29,6 +29,7 @@ globalParser = Global <$>
  <*> option auto ( long "simTime" <> value time)
  <*> option auto ( long "totalSteps" <> value steps)
  <*> option auto ( long "totalSpikes" <> value 100)
+ <*> option auto ( long "numThreads" <> value 8)
  where
     step = 0.01
     time = 5000.0
