@@ -21,8 +21,8 @@ library
       base >=4.7 && <5
     , bytestring
     , cassava
-    , cmdargs
     , mwc-random
+    , optparse-applicative
     , primitive
     , split
     , transformers
@@ -30,6 +30,7 @@ library
   exposed-modules:
       EuMa.Main
   other-modules:
+      EuMa.CmdLine
       EuMa.Pituitary
       EuMa.Types
       Paths_pituitary
@@ -44,8 +45,8 @@ executable pituitary
       base >=4.7 && <5
     , bytestring
     , cassava
-    , cmdargs
     , mwc-random
+    , optparse-applicative
     , pituitary
     , primitive
     , split

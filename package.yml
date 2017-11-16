@@ -13,13 +13,13 @@ ghc-options: -Wall
 dependencies:
   - base >= 4.7 && < 5
   - mwc-random
-  - cmdargs
   - split
   - transformers
   - primitive
   - cassava
   - bytestring
   - vector
+  - optparse-applicative
 
 library:
   source-dirs: src

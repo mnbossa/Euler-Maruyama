@@ -1,11 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveDataTypeable #-} -- for CmdArgs
 {-# LANGUAGE TupleSections #-}
 
 module EuMa.Main where
 
-import System.Console.CmdArgs
 import Data.List (zip5)
 -- import System.Environment --args <- getArgs
 import System.Random.MWC (createSystemRandom, Gen)
@@ -17,38 +15,10 @@ import qualified Data.Vector as V
 import Data.Monoid ((<>))
 import EuMa.Types
 import EuMa.Pituitary
-
-data SubCommand =
-  Peaks Parameters | Curves Parameters | MultiCurves Int Parameters  --fixme change parameters for MultiCurves
-    deriving (Data, Typeable, Show, Eq)
+import EuMa.CmdLine
 
 ------------------ Simulation parameters -------------------------------------------------------------
 -- Default parameter values
-
-paramsInit :: Parameters
-paramsInit =
-  Parameters { cm = 10        &= help "( 10 pF) Membrane capacitance",
-               gcal = 2       &= help "(  2 nS) Maximal conductance of Ca^2+ channels",
-               vca = 60       &= help "( 60 mV) Reversal potential for Ca^2+ channels",
-               vm = (-20)     &= help "(-20 mV) Voltage value at midpoint of m_inf",
-               sm = 12        &= help "( 12 mV) Slope parameter of m_inf",
-               gk = 3.2       &= help "(3.2 nS) Maximal conductance of K channels",
-               vk = -75       &= help "(-75 mV) Reversal potential for K^+",
-               vn = -5        &= help "( -5 mV) Voltage value at midpoint of n_inf",
-               sn = 10        &= help "( 10 mV) Slope parameter of n_inf",
-               taun = 30      &= help "( 30 ms) Time constant of n",
-               gsk = 2        &= help "(  2 nS) Maximal conductance of SK channels",
-               ks = 0.4       &= help "(0.4 muM) [Ca] at midpoint of S_inf",
-               gbk = 0.5      &= help "(0.5 nS) Maximal conductance of BK channels",
-               vf= (-20)      &= help "(-20 mV) Voltage value at midpoint of f_inf",
-               sf= 1          &= help "(  1 mV) Slope parameter of f_inf",
-               taubk = 5      &= help "(  5 ms) Time constant of f",
-               gl = 0.2       &= help "(0.2 nS) Leak conductance",
-               vl = (-50)     &= help "(-50 mV) Reversal potential for the leak current",
-               noise = 4.0    &= help "(  4 pA) Amplitude of noise current",
-               fc = 0.01      &= help "( 0.001) Fraction of free Ca^2+ions in cytoplasm",
-               alpha = 0.0015 &= ignore ,
-               kc = 0.12      &= help "(0.12 ms^-1) Rate of Ca^2+ extrusion"}
 
 ------------------ Model variables -------------------------------------------------------------------
 --   dV/dt = dotVar( S )
@@ -60,23 +30,17 @@ initVar = Variables { varV = -60, varn = 0.1, varf = 0.01, varCa = 0.25 }
 
 ------------------ Random process --------------------------------------------------------------------
 
-global :: Global
-global = Global { stepSize = step, simTime = time, totalSteps = steps, totalSpikes = 100 } where
-  step = 0.01
-  time = 5000.0
-  steps = (floor $ time/step)
-
 --data AllParams = AllParams { parameters :: Parameters, global :: Global }  deriving (Data,Typeable,Show,Eq)
-peaks :: PrimMonad m => Gen (PrimState m) -> Parameters -> m [Int]
-peaks gen parameters = do
+peaks :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters-> m [Int]
+peaks gen global parameters = do
   -- more than 2x faster
   let threshold = -35
       compLenSpikes =  if totalSpikes global == 0 then lengthSpikes     (totalSteps  global)
                                                   else lengthSpikesUpTo (totalSpikes global)
   runReaderT (compLenSpikes initVar threshold ) (In parameters global gen)
 
-curves :: PrimMonad m => Gen (PrimState m) -> Parameters -> m ([Double],[Double],[Double],[Double],[Double])
-curves gen parameters = do
+curves :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m ([Double],[Double],[Double],[Double],[Double])
+curves gen global parameters = do
   traj <- runReaderT (simulate (totalSteps global) initVar) $ In parameters global gen
 
   let
@@ -97,26 +61,22 @@ instance ToRecord MultiCurveRecord where
 main :: IO ()
 main = do
      -- ask user file name and parameters to be changed
-     --AllParams{..} <- cmdArgs $ (AllParams paramsInit globalInit) -- paramsInit
-     subcommand <- cmdArgs $ modes [Peaks paramsInit, Curves paramsInit, MultiCurves 10 paramsInit]
-                            &= help helpText
-                            &= program "pituitary"
-                            &= summary "Pituitary cell electrical dynamic simulator v0.1.0"
+     Options{optCommand = command, optGlobals = globals} <- parseCmdLine
 
      gen  <- createSystemRandom
 
-     case subcommand of
-       Peaks params -> peaks gen params >>= BS.putStr . encode . map Only
-       Curves params -> curves gen params >>= BS.putStr . encode . uzip5
+     case command of
+       Peaks params -> peaks gen globals params >>= BS.putStr . encode . map Only
+       Curves params -> curves gen globals params >>= BS.putStr . encode . uzip5
        MultiCurves total params ->
-         mapM (\p -> (p,) <$> peaks gen p) (paramList total params) >>= BS.putStr . encode . fmap (uncurry MCR)
+         mapM (\p -> (p,) <$> peaks gen globals p) (paramList total params) >>= BS.putStr . encode . fmap (uncurry MCR)
 
   where
     uzip5 (t,varV,varn,varf,varCa) = zip5 t varV varn varf varCa
     paramList total params = replicate total params --fixme generate a random list of parameters instead
 
 
--- fixme improve readability of this string
+-- fixme move this to the CmdLine module
 helpText :: String
 helpText = "\
 \Generate predictions from a stochastic model for the activity of a pituitary \

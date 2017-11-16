@@ -2,11 +2,10 @@
 
 module EuMa.Pituitary where
 
-import Control.Monad.Trans.Reader
---import Graphics.Matplotlib
-import System.Random.MWC
-import System.Random.MWC.Distributions
-import Control.Monad.Primitive
+import Control.Monad.Trans.Reader (ReaderT, ask)
+import System.Random.MWC (Gen)
+import System.Random.MWC.Distributions (standard)
+import Control.Monad.Primitive (PrimState, PrimMonad)
 
 import EuMa.Types
 

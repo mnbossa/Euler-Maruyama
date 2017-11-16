@@ -4,8 +4,9 @@ let
 
   inherit (nixpkgs) pkgs;
 
-  f = { mkDerivation, base, bytestring, cassava, cmdargs
-      , mwc-random, primitive, split, stdenv, transformers, vector
+  f = { mkDerivation, base, bytestring, cassava, mwc-random
+      , optparse-applicative, primitive, split, stdenv, transformers
+      , vector
       }:
       mkDerivation {
         pname = "pituitary";
@@ -14,12 +15,12 @@ let
         isLibrary = true;
         isExecutable = true;
         libraryHaskellDepends = [
-          base bytestring cassava cmdargs mwc-random primitive split
-          transformers vector
+          base bytestring cassava mwc-random optparse-applicative primitive
+          split transformers vector
         ];
         executableHaskellDepends = [
-          base bytestring cassava cmdargs mwc-random primitive split
-          transformers vector
+          base bytestring cassava mwc-random optparse-applicative primitive
+          split transformers vector
         ];
         description = "Reimplementation of R. Bertram works.";
         license = stdenv.lib.licenses.mit;

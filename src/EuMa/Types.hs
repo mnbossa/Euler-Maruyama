@@ -1,9 +1,7 @@
-{-# LANGUAGE DeriveDataTypeable #-} -- for CmdArgs
 {-# LANGUAGE RecordWildCards #-}
 
 module EuMa.Types where
 
-import System.Console.CmdArgs
 import qualified Data.Vector as V
 import Data.Csv (ToRecord(..), toField)
 
@@ -31,7 +29,7 @@ data Parameters =
              , fc :: Double      -- Fraction of free Ca^2+ions in cytoplasm
              , alpha :: Double   -- (\mu M fC^-1) Conversion from charges to molar concentration
              , kc :: Double      -- (ms^-1) Rate of Ca^2+ extrusion
-             } deriving (Data,Typeable,Show,Eq)
+             } deriving (Show)
 
 instance ToRecord Parameters where
   toRecord Parameters{..} = --fixme add other parameters, and use ToNamedRecord instead
@@ -61,4 +59,4 @@ data Global = Global { stepSize    :: Double
                      , simTime     :: Double
                      , totalSteps  :: Int
                      , totalSpikes :: Int
-                     } --deriving (Data,Typeable,Show,Eq)
+                     } deriving (Show)
