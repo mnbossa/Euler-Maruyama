@@ -6,17 +6,15 @@
 module EuMa.Main where
 
 import System.Console.CmdArgs
-import Data.List (intercalate, zip5)
-import Data.List.Split (splitWhen)
+import Data.List (zip5)
 -- import System.Environment --args <- getArgs
-import Control.Monad (unless)
-import System.Random.MWC (createSystemRandom)
+import System.Random.MWC (createSystemRandom, Gen)
 import Control.Monad.Trans.Reader (runReaderT)
+import Control.Monad.Primitive (PrimMonad, PrimState)
 import Data.Csv (encode, Only(..), ToRecord(..), toField)
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
 import Data.Monoid ((<>))
-import Data.Bifunctor
 import EuMa.Types
 import EuMa.Pituitary
 
@@ -69,7 +67,7 @@ global = Global { stepSize = step, simTime = time, totalSteps = steps, totalSpik
   steps = (floor $ time/step)
 
 --data AllParams = AllParams { parameters :: Parameters, global :: Global }  deriving (Data,Typeable,Show,Eq)
-
+peaks :: PrimMonad m => Gen (PrimState m) -> Parameters -> m [Int]
 peaks gen parameters = do
   -- more than 2x faster
   let threshold = -35
@@ -77,6 +75,7 @@ peaks gen parameters = do
                                                   else lengthSpikesUpTo (totalSpikes global)
   runReaderT (compLenSpikes initVar threshold ) (In parameters global gen)
 
+curves :: PrimMonad m => Gen (PrimState m) -> Parameters -> m ([Double],[Double],[Double],[Double],[Double])
 curves gen parameters = do
   traj <- runReaderT (simulate (totalSteps global) initVar) $ In parameters global gen
 
@@ -94,10 +93,6 @@ data MultiCurveRecord = MCR Parameters [Int]
 
 instance ToRecord MultiCurveRecord where
   toRecord (MCR params xs) = toRecord params <> V.fromList (map toField xs)
-
-instance ToRecord Parameters where
-  toRecord Parameters{..} = --fixme add other parameters, and use ToNamedRecord instead
-    V.fromList $ map toField [cm,gcal,vca,vm,sm]
 
 main :: IO ()
 main = do

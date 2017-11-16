@@ -76,22 +76,26 @@ simulate n = iterateMn n eulerStep
 
 lengthSpikes :: (PrimMonad m) => Int -> Variables Double -> Double -> Comp m [Int]
 lengthSpikes  n x0 th = comph' n x0 [0] where
+  comph' _ _ [] = error "unexpected pattern in lengthSpikes"
   comph' m x hh@(h:hs) = do
     new <- eulerStep x
     let hhh | v>=th        =  (h+1):hs
             | v<th && h==0 = hh
             | v<th && h>0  = 0:hh
+            | otherwise = error "unexpected pattern in lengthSpikes"
             where v = varV new
     if m==1 then return (clean hhh) else comph' (m-1) new hhh
-       where clean yy@(y:ys) = if y==0 then ys else yy
+       where clean yy@ys = if head ys == 0 then ys else yy
 
 lengthSpikesUpTo :: (PrimMonad m) => Int -> Variables Double -> Double -> Comp m [Int]
 lengthSpikesUpTo n x0 th = comph' x0 [0] where
+  comph' _ [] = error "unexpected pattern in lengthSpikesUpTo"
   comph' x hh@(h:hs) = do
     new <- eulerStep x
     let hhh | v>=th        =  (h+1):hs
             | v<th && h==0 = hh
             | v<th && h>0  = 0:hh
+            | otherwise = error "unexpected pattern in lengthSpikesUpTo"
             where v = varV new
     if length hhh == n then return (clean hhh) else comph' new hhh
-       where clean yy@(y:ys) = if y==0 then ys else yy
+       where clean yy@(ys) = if  head ys ==0 then ys else yy

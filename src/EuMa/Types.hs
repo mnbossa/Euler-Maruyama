@@ -1,8 +1,11 @@
 {-# LANGUAGE DeriveDataTypeable #-} -- for CmdArgs
+{-# LANGUAGE RecordWildCards #-}
 
 module EuMa.Types where
 
 import System.Console.CmdArgs
+import qualified Data.Vector as V
+import Data.Csv (ToRecord(..), toField)
 
 
 data Parameters =
@@ -29,6 +32,10 @@ data Parameters =
              , alpha :: Double   -- (\mu M fC^-1) Conversion from charges to molar concentration
              , kc :: Double      -- (ms^-1) Rate of Ca^2+ extrusion
              } deriving (Data,Typeable,Show,Eq)
+
+instance ToRecord Parameters where
+  toRecord Parameters{..} = --fixme add other parameters, and use ToNamedRecord instead
+    V.fromList $ map toField [cm,gcal,vca,vm,sm]
 
 data Variables a = Variables { varV  :: !a -- membrane potential
                              , varn  :: !a -- activation of I_K
