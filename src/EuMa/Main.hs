@@ -9,6 +9,7 @@ import Data.List (zip5)
 import System.Random.MWC (createSystemRandom, Gen)
 import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.Primitive (PrimMonad, PrimState)
+import Control.Monad (forM)
 import Data.Csv (encode, Only(..), ToRecord(..), toField)
 import qualified Pipes.Csv as CSV
 import qualified Data.ByteString.Lazy as BS
@@ -17,6 +18,8 @@ import Data.Monoid ((<>))
 import Pipes (runEffect, each, (>->))
 import qualified Pipes.ByteString as PBS
 import qualified Pipes.Prelude as P
+import qualified Pipes.Concurrent as PCon
+import qualified Control.Concurrent.Async as Async
 import EuMa.Types
 import EuMa.Pituitary
 import EuMa.CmdLine
@@ -67,6 +70,28 @@ instance ToRecord MultiCurveRecord where
 mkMultiParameters :: Int -> Parameters -> [Parameters]
 mkMultiParameters n = replicate n
 
+multi :: (Foldable f) => Gen (PrimState IO) -> Global -> f Parameters -> IO [Async.Async ()]
+multi gen globals ps = do
+  -- we create a channel to communicate the producer and the workers
+  (output, input) <- PCon.spawn (PCon.bounded (3*threads))
+
+  -- spawn a single thread to produce all the work, should be enough since
+  -- creating parameters is lightweight
+  t1 <- Async.async $ runEffect $ each ps >-> PCon.toOutput output
+
+  -- spawn threads workers taking work from the queue
+  ts <- forM [1..threads] $ \_ ->
+    Async.async $ runEffect $
+              PCon.fromInput input
+                >-> P.mapM (\p -> MCR p <$> peaks gen globals p)
+                >-> CSV.encode
+                >-> PBS.stdout
+
+  -- returns the asyncs so callers can wait for finalization
+  pure (t1:ts)
+
+  where threads = numThreads globals
+
 main :: IO ()
 main = do
      -- ask user file name and parameters to be changed
@@ -77,11 +102,9 @@ main = do
      case command of
        Peaks params -> peaks gen globals params >>= BS.putStr . encode . map Only
        Curves params -> curves gen globals params >>= BS.putStr . encode . unzip5
-       MultiCurves total params ->
-         runEffect $ each (mkMultiParameters total params)
-                >-> P.mapM (\p -> MCR p <$> peaks gen globals p)
-                >-> CSV.encode
-                >-> PBS.stdout
+       MultiCurves total params -> do
+         threads <- multi gen globals (mkMultiParameters total params)
+         mapM_ Async.wait threads
 
   where
     unzip5 (t,varV,varn,varf,varCa) = zip5 t varV varn varf varCa
