@@ -93,6 +93,7 @@ helpText = "\
 \ Produce only txt file. Simulation is run until a fixed number of spikes \
 \is obtained."
 
+
 {-
 
 import Data.List.Split
@@ -100,37 +101,12 @@ import Data.List
 import Data.Vector (fromList)
 import Statistics.Sample
 
-traj <-  runReaderT (simulate (totalSteps global) initVar) $ In (paramsInit {gbk = 0, noise = 100})  global gen
-traj1 <- runReaderT (simulate (totalSteps global) initVar) $ In (paramsInit {gbk = 1, noise = 100})  global gen
+import Options.Applicative
+gen  <- createSystemRandom
+params <-  execParser (info  parametersParser fullDesc )
+global <-  execParser (info  globalParser  fullDesc )
 
-let xx  = splitWhen  (> -35) (varV <$> traj)
-let xx1 = splitWhen  (> -35) (varV <$> traj1)
-
-(stepSize global *) $ mean . fromList . map fromIntegral $  filter (>0) ( map length xx )
-(stepSize global *) $ mean . fromList . map fromIntegral $  filter (>0) ( map length xx1)
-
-(stepSize global *) $ stdDev . fromList . map fromIntegral $  filter (>0) ( map length xx )
-(stepSize global *) $ stdDev . fromList . map fromIntegral $  filter (>0) ( map length xx1)
-
-mean . fromList $ filter (>0) ( (* (stepSize global / 1000) ) . fromIntegral . length <$> splitWhen  (> -35) (varV <$> traj1) )
-
-onscreen $ histogram ( (* (stepSize global / 1000) ) . fromIntegral <$> ( filter (>5) $ length <$> splitWhen  (< -35) (varV <$> traj)  ) ) 10 @@ [o2 "histtype" "stepfilled" ,o2 "alpha" 0.8, o2 "normed" True] % xlim 0 0.2
-onscreen $ histogram ( (* (stepSize global / 1000) ) . fromIntegral <$> ( filter (>5) $ length <$> splitWhen  (< -35) (varV <$> traj1) ) ) 20 % xlim 0 0.2
-
-
-onscreen $  densityBandwidth ( ( (* (stepSize global / 1000) ) . fromIntegral <$> ( filter (>5) $ length <$> splitWhen  (< -35) (varV <$> traj)   ) )) 0.00005 (Just (0,0.2)) %
-            densityBandwidth ( ( (* (stepSize global / 1000) ) . fromIntegral <$> ( filter (>5) $ length <$> splitWhen  (< -35) (varV <$> traj1)  ) )) 0.00005 (Just (0,0.2))
+traj <-  runReaderT (simulate (totalSteps global) initVar) $ In (params {gbk = 0, noise = 100})  global gen
 
 -}
 
--- let mean x = fst $ foldl' (\(!m, !n) x -> (m+(x-m)/(n+1),n+1)) (0,0) x
-
---var xs = (var' 0 0 0 xs) / (fromIntegral $ length xs - 1)
---    where
---      var' _ _ s [] = s
---      var' m n s (x:xs) = var' nm (n + 1) (s + delta * (x - nm)) xs
---         where
---           delta = x - m
---           nm = m + delta/(fromIntegral $ n + 1)
-
---std = sqrt . var

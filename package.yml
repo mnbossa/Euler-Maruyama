@@ -6,7 +6,7 @@ maintainer: Matias Bossa
 license: MIT
 category: Science
 extra-source-files:
-#  - CHANGELOG.md
+  - CHANGELOG.md
 
 ghc-options: -Wall
 

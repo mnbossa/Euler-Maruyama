@@ -66,5 +66,5 @@ parametersParser = Parameters <$>
   <*> option auto (long "vl" <> value (-50) <> help "(mV) Reversal potential for the leak current")
   <*> option auto (long "noise" <> value 4 <> help "(pA) Amplitude of noise current")
   <*> option auto (long "fc" <> value 0.01 <> help "(0.01) Fraction of free Ca^2+ions in cytoplasm")
-  <*> option auto (long "alpha" <> value 0.0015 <> help "(\\mu M fC^-1) Conversion from charges to molar concentration")
+  <*> pure 0.0015 -- option auto (long "alpha" <> value 0.0015 <> help "(\\mu M fC^-1) Conversion from charges to molar concentration")
   <*> option auto (long "kc" <> value 0.12 <> help "(ms^-1) Rate of Ca^2+ extrusion")
