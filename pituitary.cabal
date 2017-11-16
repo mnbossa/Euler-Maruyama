@@ -19,6 +19,8 @@ library
   ghc-options: -Wall
   build-depends:
       base >=4.7 && <5
+    , bytestring
+    , cassava
     , cmdargs
     , mwc-random
     , primitive
@@ -39,6 +41,8 @@ executable pituitary
   ghc-options: -Wall
   build-depends:
       base >=4.7 && <5
+    , bytestring
+    , cassava
     , cmdargs
     , mwc-random
     , pituitary
