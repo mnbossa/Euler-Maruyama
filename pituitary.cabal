@@ -23,6 +23,9 @@ library
     , cassava
     , mwc-random
     , optparse-applicative
+    , pipes
+    , pipes-bytestring
+    , pipes-csv
     , primitive
     , split
     , transformers
@@ -47,6 +50,9 @@ executable pituitary
     , cassava
     , mwc-random
     , optparse-applicative
+    , pipes
+    , pipes-bytestring
+    , pipes-csv
     , pituitary
     , primitive
     , split

@@ -10,9 +10,13 @@ import System.Random.MWC (createSystemRandom, Gen)
 import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.Primitive (PrimMonad, PrimState)
 import Data.Csv (encode, Only(..), ToRecord(..), toField)
+import qualified Pipes.Csv as CSV
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
 import Data.Monoid ((<>))
+import Pipes (runEffect, each, (>->))
+import qualified Pipes.ByteString as PBS
+import qualified Pipes.Prelude as P
 import EuMa.Types
 import EuMa.Pituitary
 import EuMa.CmdLine
@@ -31,7 +35,7 @@ initVar = Variables { varV = -60, varn = 0.1, varf = 0.01, varCa = 0.25 }
 ------------------ Random process --------------------------------------------------------------------
 
 --data AllParams = AllParams { parameters :: Parameters, global :: Global }  deriving (Data,Typeable,Show,Eq)
-peaks :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters-> m [Int]
+peaks :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m [Int]
 peaks gen global parameters = do
   -- more than 2x faster
   let threshold = -35
@@ -58,6 +62,11 @@ data MultiCurveRecord = MCR Parameters [Int]
 instance ToRecord MultiCurveRecord where
   toRecord (MCR params xs) = toRecord params <> V.fromList (map toField xs)
 
+-- fixme this just repeats the same parameters multiple times, we need to create
+-- a combination of different parameters
+mkMultiParameters :: Int -> Parameters -> [Parameters]
+mkMultiParameters n = replicate n
+
 main :: IO ()
 main = do
      -- ask user file name and parameters to be changed
@@ -67,13 +76,15 @@ main = do
 
      case command of
        Peaks params -> peaks gen globals params >>= BS.putStr . encode . map Only
-       Curves params -> curves gen globals params >>= BS.putStr . encode . uzip5
+       Curves params -> curves gen globals params >>= BS.putStr . encode . unzip5
        MultiCurves total params ->
-         mapM (\p -> (p,) <$> peaks gen globals p) (paramList total params) >>= BS.putStr . encode . fmap (uncurry MCR)
+         runEffect $ each (mkMultiParameters total params)
+                >-> P.mapM (\p -> MCR p <$> peaks gen globals p)
+                >-> CSV.encode
+                >-> PBS.stdout
 
   where
-    uzip5 (t,varV,varn,varf,varCa) = zip5 t varV varn varf varCa
-    paramList total params = replicate total params --fixme generate a random list of parameters instead
+    unzip5 (t,varV,varn,varf,varCa) = zip5 t varV varn varf varCa
 
 
 -- fixme move this to the CmdLine module

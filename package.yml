@@ -16,10 +16,13 @@ dependencies:
   - split
   - transformers
   - primitive
-  - cassava
   - bytestring
   - vector
   - optparse-applicative
+  - pipes
+  - pipes-bytestring
+  - pipes-csv
+  - cassava
 
 library:
   source-dirs: src
