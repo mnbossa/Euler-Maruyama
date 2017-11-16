@@ -1,6 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-} -- for CmdArgs
+{-# LANGUAGE TupleSections #-}
 
 module EuMa.Main where
 
@@ -11,13 +12,16 @@ import Data.List.Split (splitWhen)
 import Control.Monad (unless)
 import System.Random.MWC (createSystemRandom)
 import Control.Monad.Trans.Reader (runReaderT)
-import Data.Csv (encode, Only(..))
+import Data.Csv (encode, Only(..), ToRecord(..), toField)
 import qualified Data.ByteString.Lazy as BS
+import qualified Data.Vector as V
+import Data.Monoid ((<>))
+import Data.Bifunctor
 import EuMa.Types
 import EuMa.Pituitary
 
 data SubCommand =
-  Peaks Parameters | Curves Parameters
+  Peaks Parameters | Curves Parameters | MultiCurves Int Parameters  --fixme change parameters for MultiCurves
     deriving (Data, Typeable, Show, Eq)
 
 ------------------ Simulation parameters -------------------------------------------------------------
@@ -86,12 +90,20 @@ curves gen parameters = do
     Variables{..} = sequenceA $ (take nPlot . everynth nskip) traj
   return (t, varV, varn, varf, varCa)
 
+data MultiCurveRecord = MCR Parameters [Int]
+
+instance ToRecord MultiCurveRecord where
+  toRecord (MCR params xs) = toRecord params <> V.fromList (map toField xs)
+
+instance ToRecord Parameters where
+  toRecord Parameters{..} = --fixme add other parameters, and use ToNamedRecord instead
+    V.fromList $ map toField [cm,gcal,vca,vm,sm]
 
 main :: IO ()
 main = do
      -- ask user file name and parameters to be changed
      --AllParams{..} <- cmdArgs $ (AllParams paramsInit globalInit) -- paramsInit
-     subcommand <- cmdArgs $ modes [Peaks paramsInit, Curves paramsInit]
+     subcommand <- cmdArgs $ modes [Peaks paramsInit, Curves paramsInit, MultiCurves 10 paramsInit]
                             &= help helpText
                             &= program "pituitary"
                             &= summary "Pituitary cell electrical dynamic simulator v0.1.0"
@@ -101,11 +113,15 @@ main = do
      case subcommand of
        Peaks params -> peaks gen params >>= BS.putStr . encode . map Only
        Curves params -> curves gen params >>= BS.putStr . encode . uzip5
+       MultiCurves total params ->
+         mapM (\p -> (p,) <$> peaks gen p) (paramList total params) >>= BS.putStr . encode . fmap (uncurry MCR)
 
   where
     uzip5 (t,varV,varn,varf,varCa) = zip5 t varV varn varf varCa
+    paramList total params = replicate total params --fixme generate a random list of parameters instead
 
 
+-- fixme improve readability of this string
 helpText :: String
 helpText = "\
 \Generate predictions from a stochastic model for the activity of a pituitary \

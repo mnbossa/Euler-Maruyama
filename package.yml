@@ -19,6 +19,7 @@ dependencies:
   - primitive
   - cassava
   - bytestring
+  - vector
 
 library:
   source-dirs: src
