@@ -21,7 +21,7 @@ dependencies:
 library:
   source-dirs: src
   exposed-modules:
-    - Pituitary.Main
+    - EuMa.Main
 
 executable:
   main: Main.hs
