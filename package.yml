@@ -1,0 +1,30 @@
+name: pituitary
+version: 0.0.1
+synopsis: Reimplementation of R. Bertram works.
+description: See README at <https://gitlab.unizar.es/bossa/Pituitary>
+maintainer: Matias Bossa
+license: MIT
+category: Science
+extra-source-files:
+#  - CHANGELOG.md
+
+ghc-options: -Wall
+
+dependencies:
+  - base >= 4.7 && < 5
+  - mwc-random
+  - cmdargs
+  - split
+  - transformers
+  - primitive
+
+library:
+  source-dirs: src
+  exposed-modules:
+    - Pituitary.Main
+
+executable:
+  main: Main.hs
+  source-dirs: driver
+  dependencies:
+    - pituitary
