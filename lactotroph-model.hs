@@ -1,22 +1,19 @@
 {-# LANGUAGE DeriveDataTypeable #-} -- for CmdArgs
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ExtendedDefaultRules #-} -- for Matplotlib
 
 import Control.Monad.Trans.Reader
-import Graphics.Matplotlib
 import System.Random.MWC
 import System.Random.MWC.Distributions
 import Control.Monad.Primitive
 import System.Console.CmdArgs
-import Data.List (intercalate)
-import Data.List.Split (splitWhen)
--- import System.Environment --args <- getArgs
-import Control.Monad (when, unless)
+import Data.List (zip5)
+import Data.Csv (encode, Only(..))
+import qualified Data.ByteString.Lazy as BS
 
 ------------------ Simulation parameters -------------------------------------------------------------
 data Parameters =
-  Parameters { filename :: String
+  Parameters { mode :: String
              , cm :: Double      -- (pF) Membrane capacitance
              , gcal :: Double    -- (nS) Maximal conductance of Ca^2+ channels
              , vca :: Double     -- (mV) Reversal potential for Ca^2+ channels
@@ -44,7 +41,7 @@ data Parameters =
 -- Default parameter values
 paramsInit :: Parameters
 paramsInit =
-  Parameters { filename = "out" &= typ "filename" &= argPos 0 ,
+  Parameters { mode = "peaks" &= typ "Mode: peaks or curves" &= argPos 0 ,
                cm = 10        &= help "( 10 pF) Membrane capacitance",
                gcal = 2       &= help "(  2 nS) Maximal conductance of Ca^2+ channels",
                vca = 60       &= help "( 60 mV) Reversal potential for Ca^2+ channels",
@@ -160,26 +157,32 @@ simulate :: (PrimMonad m) => Int -> Variables Double -> Comp m [Variables Double
 simulate n = iterateMn n eulerStep
 
 lengthSpikes :: (PrimMonad m) => Int -> Variables Double -> Double -> Comp m [Int]
-lengthSpikes  n x0 th = comph' n x0 [0] where
+lengthSpikes  n x0 th = comph' (n+3) x0 [0] where
+  comph' _ _ [] = error "unexpected pattern in lengthSpikes"
   comph' m x hh@(h:hs) = do
     new <- eulerStep x
     let hhh | v>=th        =  (h+1):hs
             | v<th && h==0 = hh
             | v<th && h>0  = 0:hh
+            | otherwise = error "unexpected pattern in lengthSpikesUpTo"
             where v = varV new
-    if m==1 then return (clean hhh) else comph' (m-1) new hhh
-       where clean yy@(y:ys) = if y==0 then ys else yy
+    if m==1 then return (take n (clean hhh)) else comph' (m-1) new hhh
+       where clean yy@(y:ys) = if  y == 0 then ys else yy
+             clean [] = error  "unexpected pattern in lengthSpikes"
 
 lengthSpikesUpTo :: (PrimMonad m) => Int -> Variables Double -> Double -> Comp m [Int]
 lengthSpikesUpTo n x0 th = comph' x0 [0] where
+  comph' _ [] = error "unexpected pattern in lengthSpikesUpTo"
   comph' x hh@(h:hs) = do
     new <- eulerStep x
     let hhh | v>=th        =  (h+1):hs
             | v<th && h==0 = hh
             | v<th && h>0  = 0:hh
+            | otherwise = error "unexpected pattern in lengthSpikesUpTo"
             where v = varV new
-    if length hhh == n then return (clean hhh) else comph' new hhh
-       where clean yy@(y:ys) = if y==0 then ys else yy
+    if length hhh == (n+3) then return (take n (clean hhh)) else comph' new hhh
+       where clean yy@(y:ys) = if  y == 0 then ys else yy
+             clean [] = error  "unexpected pattern in lengthSpikes"
 
 -------------- Global (simulation) parameters --------------------------------------------------------
 data Global = Global { stepSize    :: Double
@@ -189,7 +192,7 @@ data Global = Global { stepSize    :: Double
                      } --deriving (Data,Typeable,Show,Eq)
 
 global :: Global
-global = Global { stepSize = step, simTime = time, totalSteps = steps, totalSpikes = 1000 } where
+global = Global { stepSize = step, simTime = time, totalSteps = steps, totalSpikes = 100 } where
   step = 0.01
   time = 5000.0
   steps = (floor $ time/step)
@@ -202,9 +205,8 @@ main = do
      let helpText = "Generate predictions from a stochastic model for the activity of a pituitary lactotroph as described in the paper " ++
                     "\"Fast-Activating Voltage- and Calcium-Dependent Potassium (BK) Conductance Promotes Bursting in Pituitary Cells\", " ++
                     "J. Tabak, M. Tomaiuolo, A.E. Gonzalez-Iglesias, L.S. Milescu, R. Bertram, the Journal of Neuroscience, 31:16855-16863, 2011." ++
-                    "\n \nUsage:\n    ./pitt-cells file [OPTIONS]     \n Produce 4 .png files (the images of each variable trajectory vs. time) and a .txt file (spike lengths: number of time-step) using a fixed simulation time.\n" ++
-                             "\n \n    ./pitt-cells file.fig [OPTIONS] \n Produce 4 .fig files as above, but where fig is one of the following: png, pdf, jpg, jpeg. No txt file is produced." ++
-                             "\n \n    ./pitt-cells file.txt [OPTIONS] \n Produce only txt file. Simulation is run until a fixed number of spikes is obtained."
+                    "\n \nUsage:\n    ./lactotroph-model curves [OPTIONS]     \n Produce CSV like output containing trajectories of the variables. The simulation time is fixed.\n" ++
+                             "\n \n    ./lactotroph-model peaks [OPTIONS] \n Produce a stream of spike lengths. Simulation is run until a fixed number of spikes is obtained."
      -- ask user file name and parameters to be changed
      --AllParams{..} <- cmdArgs $ (AllParams paramsInit globalInit) -- paramsInit
      parameters <- cmdArgs $ paramsInit
@@ -214,50 +216,31 @@ main = do
 
      gen  <- createSystemRandom
 
-     let fname     = filename parameters
-         ext       = last $ splitWhen (== '.') fname
-         threshold = -35
-         hasFigExt = any (ext ==) ["png", "pdf", "jpg", "jpeg"]
-
-     if ext == "txt" then
+     
+     if mode parameters == "peaks" then
        do
          -- more than 2x faster
-         let compLenSpikes =  if totalSpikes global == 0 then lengthSpikes     (totalSteps  global)
+         let threshold = -35
+             compLenSpikes =  if totalSpikes global == 0 then lengthSpikes     (totalSteps  global)
                                                          else lengthSpikesUpTo (totalSpikes global)
          lenSpikes <- runReaderT (compLenSpikes initVar threshold ) (In parameters global gen)
 
-         writeFile fname $ intercalate ", " (map show lenSpikes)
-         return ()
+         BS.putStr $ encode $ map Only lenSpikes
       else
        do
          traj <- runReaderT (simulate (totalSteps global) initVar) $ In parameters global gen
 
-         unless hasFigExt $ let lenSpikes = filter (>1) $ length <$> splitWhen  (< threshold) (varV <$> traj)
-                            in  writeFile (fname ++ ".txt") $ intercalate ", " (map show lenSpikes)
-
-         let
+         let 
            nPlot         = 5000 :: Int
            nskip         = totalSteps global `div` nPlot
            dtPlot        = (stepSize global)*(fromIntegral nskip)
-
+           
            everynth k xs = y:(everynth k ys) where y:ys = drop (k-1) xs
            t =  map ((dtPlot*) . fromIntegral) [1..nPlot]
            Variables{..} = sequenceA $ (take nPlot . everynth nskip) traj
 
-           figV = plot t varV  % xlabel "time (ms)" % title "V (membrane potential)" % ylabel "mV"
-           fign = plot t varn  % xlabel "time (ms)" % title "n (activation of $I_K$)"
-           figf = plot t varf  % xlabel "time (ms)" % title "f (activation of $I_{BK}$)"
-           figCa= plot t varCa % xlabel "time (ms)" % title "[Ca] (intracellular Ca$^{2+}$ concentration)"
+         BS.putStr $ encode $ zip5 t varV varn varf varCa
 
-         let figname = take (length fname - (if hasFigExt then length ext + 1 else 0)) fname
-             figext  = if hasFigExt then ext else "png"
-
-         Right _ <- file ( figname ++  "V." ++ figext) $ figV
-         Right _ <- file ( figname ++  "n." ++ figext) $ fign
-         Right _ <- file ( figname ++  "f." ++ figext) $ figf
-         Right _ <- file ( figname ++ "Ca." ++ figext) $ figCa
-
-         return ()
 
 {-
 
