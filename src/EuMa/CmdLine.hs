@@ -2,6 +2,7 @@ module EuMa.CmdLine where
 
 import Options.Applicative
 import Data.Semigroup ((<>))
+import Data.Vector (singleton)
 
 import EuMa.Types
 
@@ -23,13 +24,18 @@ data Command
       multiNumCurves :: Int
     , multiParams :: Parameters }
 
+-- parse a single number as a RandomSeed
+seedParser :: Parser RandomSeed
+seedParser = singleton <$> option auto (long "rndSeed")
+
 globalParser :: Parser Global
 globalParser = Global <$>
-     option auto ( long "stepSize" <> value step)
- <*> option auto ( long "simTime" <> value time)
- <*> option auto ( long "totalSteps" <> value steps)
- <*> option auto ( long "totalSpikes" <> value 100)
- <*> option auto ( long "numThreads" <> value 8)
+     option auto (long "stepSize" <> value step)
+ <*> option auto (long "simTime" <> value time)
+ <*> option auto (long "totalSteps" <> value steps)
+ <*> option auto (long "totalSpikes" <> value 100)
+ <*> option auto (long "numThreads" <> value 8)
+ <*> (fmap Just seedParser <|> pure Nothing)
  where
     step = 0.01
     time = 5000.0

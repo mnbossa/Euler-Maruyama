@@ -4,6 +4,8 @@ module EuMa.Types where
 
 import qualified Data.Vector as V
 import Data.Csv (ToRecord(..), toField)
+import Data.Word (Word32)
+import Data.Vector (Vector)
 
 
 data Parameters =
@@ -54,10 +56,13 @@ instance Applicative Variables where
                       , varf  = (varf  f) (varf  v)
                       , varCa = (varCa f) (varCa v) }
 
+type RandomSeed = Vector Word32
+
 -------------- Global (simulation) parameters --------------------------------------------------------
 data Global = Global { stepSize    :: Double
                      , simTime     :: Double
                      , totalSteps  :: Int
                      , totalSpikes :: Int
                      , numThreads :: Int
+                     , rndSeed :: Maybe RandomSeed
                      } deriving (Show)

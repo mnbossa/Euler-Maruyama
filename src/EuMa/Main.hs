@@ -6,7 +6,7 @@ module EuMa.Main where
 
 import Data.List (zip5)
 -- import System.Environment --args <- getArgs
-import System.Random.MWC (createSystemRandom, Gen)
+import System.Random.MWC (createSystemRandom, Gen, initialize)
 import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.Primitive (PrimMonad, PrimState)
 import Control.Monad (forM)
@@ -92,12 +92,17 @@ multi gen globals ps = do
 
   where threads = numThreads globals
 
+
+mkRandomGenerator :: Maybe RandomSeed -> IO (Gen (PrimState IO))
+mkRandomGenerator Nothing = createSystemRandom
+mkRandomGenerator (Just seed) = initialize seed
+
 main :: IO ()
 main = do
      -- ask user file name and parameters to be changed
      Options{optCommand = command, optGlobals = globals} <- parseCmdLine
 
-     gen  <- createSystemRandom
+     gen  <- mkRandomGenerator (rndSeed globals)
 
      case command of
        Peaks params -> peaks gen globals params >>= BS.putStr . encode . map Only
