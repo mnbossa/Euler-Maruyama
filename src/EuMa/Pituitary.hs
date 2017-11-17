@@ -92,8 +92,9 @@ simulate :: (PrimMonad m) => Int -> Variables Double -> Comp m [Variables Double
 simulate n = iterateMn n eulerStep
 {-# INLINABLE simulate #-}
 
+-- drop the first 3 spikes to skip transient effects
 lengthSpikes :: (PrimMonad m) => Int -> Variables Double -> Double -> Comp m [Int]
-lengthSpikes  n x0 th = comph' n x0 [0] where
+lengthSpikes  n x0 th = comph' (n+3) x0 [0] where
   comph' _ _ [] = error "unexpected pattern in lengthSpikes"
   comph' m x hh@(h:hs) = do
     new <- eulerStep x
@@ -102,10 +103,12 @@ lengthSpikes  n x0 th = comph' n x0 [0] where
             | v<th && h>0  = 0:hh
             | otherwise = error "unexpected pattern in lengthSpikes"
             where v = varV new
-    if m==1 then return (clean hhh) else comph' (m-1) new hhh
-       where clean yy@ys = if head ys == 0 then ys else yy
+    if m==1 then return (take n (clean hhh)) else comph' (m-1) new hhh
+       where clean yy@(y:ys) = if  y == 0 then ys else yy
+             clean [] = error  "unexpected pattern in lengthSpikes"
 {-# INLINABLE lengthSpikes #-}
 
+-- drop the first 3 spikes to skip transient effects
 lengthSpikesUpTo :: (PrimMonad m) => Int -> Variables Double -> Double -> Comp m [Int]
 lengthSpikesUpTo n x0 th = comph' x0 [0] where
   comph' _ [] = error "unexpected pattern in lengthSpikesUpTo"
@@ -116,6 +119,7 @@ lengthSpikesUpTo n x0 th = comph' x0 [0] where
             | v<th && h>0  = 0:hh
             | otherwise = error "unexpected pattern in lengthSpikesUpTo"
             where v = varV new
-    if length hhh == n then return (clean hhh) else comph' new hhh
-       where clean yy@(ys) = if  head ys ==0 then ys else yy
+    if length hhh == (n+3) then return (take n (clean hhh)) else comph' new hhh
+       where clean yy@(y:ys) = if  y == 0 then ys else yy
+             clean [] = error  "unexpected pattern in lengthSpikes"
 {-# INLINABLE lengthSpikesUpTo #-}
