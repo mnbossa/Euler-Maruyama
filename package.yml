@@ -8,7 +8,11 @@ category: Science
 extra-source-files:
   #- CHANGELOG.md
 
-ghc-options: -Wall -O2 # -ddump-simpl -dsuppress-all
+ghc-options:
+  -Wall
+  -O2
+  #-ddump-simpl
+  #-dsuppress-all
 
 dependencies:
   - base >= 4.7 && < 5
@@ -31,9 +35,19 @@ library:
   exposed-modules:
     - EuMa.Main
 
-executable:
-  main: Main.hs
-  source-dirs: driver
-  ghc-options: -threaded -with-rtsopts=-N
-  dependencies:
-    - pituitary
+executables:
+  pituitary: &exe
+    main: Main.hs
+    source-dirs: driver
+    ghc-options: &exeghc
+      -threaded
+      "-with-rtsopts=-N"
+    dependencies:
+      - pituitary
+
+  pituitary-prof:
+    <<: *exe
+    ghc-options:
+      -threaded
+      -fprof-auto
+      "-with-rtsopts=-N -p -s -h -i0.1"
