@@ -63,6 +63,6 @@ data Global = Global { stepSize    :: Double
                      , simTime     :: Double
                      , totalSteps  :: Int
                      , totalSpikes :: Int
-                     , numThreads :: Int
+                     , numThreads :: Maybe Int
                      , rndSeed :: Maybe RandomSeed
                      } deriving (Show)

@@ -15,10 +15,12 @@ import qualified Pipes.Csv as CSV
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
 import Data.Monoid ((<>))
+import Data.Maybe (fromMaybe)
 import Pipes (runEffect, each, (>->))
 import qualified Pipes.ByteString as PBS
 import qualified Pipes.Prelude as P
 import qualified Pipes.Concurrent as PCon
+import GHC.Conc (numCapabilities)
 import qualified Control.Concurrent.Async as Async
 import EuMa.Types
 import EuMa.Pituitary
@@ -90,7 +92,7 @@ multi gen globals ps = do
   -- returns the asyncs so callers can wait for finalization
   pure (t1:ts)
 
-  where threads = numThreads globals
+  where threads = fromMaybe numCapabilities $ numThreads globals
 
 
 mkRandomGenerator :: Maybe RandomSeed -> IO (Gen (PrimState IO))

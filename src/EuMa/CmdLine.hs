@@ -34,7 +34,7 @@ globalParser = Global <$>
  <*> option auto (long "simTime" <> value time)
  <*> option auto (long "totalSteps" <> value steps)
  <*> option auto (long "totalSpikes" <> value 100)
- <*> option auto (long "numThreads" <> value 8)
+ <*> optional (option auto (long "numThreads"))
  <*> (fmap Just seedParser <|> pure Nothing)
  where
     step = 0.01
