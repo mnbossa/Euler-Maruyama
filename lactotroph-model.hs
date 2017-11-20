@@ -10,10 +10,13 @@ import System.Console.CmdArgs
 import Data.List (zip5)
 import Data.Csv (encode, Only(..))
 import qualified Data.ByteString.Lazy as BS
+import Data.Word (Word32)
+import Data.Vector (singleton)
 
 ------------------ Simulation parameters -------------------------------------------------------------
 data Parameters =
   Parameters { mode :: String
+             , rndSeed :: Maybe Int
              , cm :: Double      -- (pF) Membrane capacitance
              , gcal :: Double    -- (nS) Maximal conductance of Ca^2+ channels
              , vca :: Double     -- (mV) Reversal potential for Ca^2+ channels
@@ -42,6 +45,7 @@ data Parameters =
 paramsInit :: Parameters
 paramsInit =
   Parameters { mode = "peaks" &= typ "Mode: peaks or curves" &= argPos 0 ,
+               rndSeed = Nothing &= help "Seed for random number generator",    
                cm = 10        &= help "( 10 pF) Membrane capacitance",
                gcal = 2       &= help "(  2 nS) Maximal conductance of Ca^2+ channels",
                vca = 60       &= help "( 60 mV) Reversal potential for Ca^2+ channels",
@@ -199,6 +203,12 @@ global = Global { stepSize = step, simTime = time, totalSteps = steps, totalSpik
 
 --data AllParams = AllParams { parameters :: Parameters, global :: Global }  deriving (Data,Typeable,Show,Eq)
 
+
+
+mkRandomGenerator :: Maybe Int -> IO (Gen (PrimState IO))
+mkRandomGenerator Nothing = createSystemRandom
+mkRandomGenerator (Just seed) = initialize $ singleton ( fromIntegral seed :: Word32)
+
 main :: IO ()
 main = do
 
@@ -214,7 +224,7 @@ main = do
                              &= program "pitt-cells"
                              &= summary "Pituitary cell electrical dynamic simulator v0.1.0"
 
-     gen  <- createSystemRandom
+     gen  <- mkRandomGenerator (rndSeed parameters)
 
      
      if mode parameters == "peaks" then
