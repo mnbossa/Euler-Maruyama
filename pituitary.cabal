@@ -34,10 +34,10 @@ library
     , vector
   exposed-modules:
       EuMa.Main
-  other-modules:
-      EuMa.CmdLine
-      EuMa.Pituitary
       EuMa.Types
+      EuMa.CmdLine
+  other-modules:
+      EuMa.Pituitary
       Paths_pituitary
   default-language: Haskell2010
 
@@ -76,6 +76,34 @@ executable pituitary-prof
     , base >=4.7 && <5
     , bytestring
     , cassava
+    , mwc-random
+    , optparse-applicative
+    , pipes
+    , pipes-bytestring
+    , pipes-concurrency
+    , pipes-csv
+    , pituitary
+    , primitive
+    , split
+    , transformers
+    , vector
+  other-modules:
+      Paths_pituitary
+  default-language: Haskell2010
+
+benchmark pituitary-bench
+  type: exitcode-stdio-1.0
+  main-is: Bench.hs
+  hs-source-dirs:
+      bench
+  ghc-options: -Wall -O2 -threaded "-with-rtsopts=-N"
+  build-depends:
+      async
+    , base >=4.7 && <5
+    , bytestring
+    , cassava
+    , criterion
+    , deepseq
     , mwc-random
     , optparse-applicative
     , pipes

@@ -5,7 +5,7 @@ let
         overrides = haskellPackagesNew: haskellPackagesOld: rec {
 
           mkDerivation = args: haskellPackagesOld.mkDerivation (args // {
-            enableLibraryProfiling = true;
+            #enableLibraryProfiling = true;
           });
 
           pituitary =
@@ -20,5 +20,5 @@ let
 
 in
   rec {
-    pituitary = pkgs.haskellPackages.pituitary;
+    pituitary = pkgs.haskell.lib.doBenchmark pkgs.haskellPackages.pituitary;
 }
