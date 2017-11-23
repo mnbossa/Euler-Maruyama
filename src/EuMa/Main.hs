@@ -2,7 +2,9 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TupleSections #-}
 
-module EuMa.Main where
+module EuMa.Main
+  (main, doMain, peaks, curves, multi, mkRandomGenerator, MultiCurveRecord(..))
+where
 
 import Data.List (zip5)
 -- import System.Environment --args <- getArgs
@@ -16,7 +18,7 @@ import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
 import Data.Monoid ((<>))
 import Data.Maybe (fromMaybe)
-import Pipes (runEffect, each, (>->))
+import Pipes (runEffect, each, (>->), Consumer)
 import qualified Pipes.ByteString as PBS
 import qualified Pipes.Prelude as P
 import qualified Pipes.Concurrent as PCon
@@ -72,8 +74,8 @@ instance ToRecord MultiCurveRecord where
 mkMultiParameters :: Int -> Parameters -> [Parameters]
 mkMultiParameters n = replicate n
 
-multi :: (Foldable f) => Gen (PrimState IO) -> Global -> f Parameters -> IO [Async.Async ()]
-multi gen globals ps = do
+multi :: (Foldable f) => Gen (PrimState IO) -> Global -> Consumer MultiCurveRecord IO () -> f Parameters -> IO [Async.Async ()]
+multi gen globals process ps = do
   -- we create a channel to communicate the producer and the workers
   (output, input) <- PCon.spawn (PCon.bounded (3*threads))
 
@@ -86,36 +88,32 @@ multi gen globals ps = do
     Async.async $ runEffect $
               PCon.fromInput input
                 >-> P.mapM (\p -> MCR p <$> peaks gen globals p)
-                >-> CSV.encode
-                >-> PBS.stdout
+                >-> process
 
-  -- returns the asyncs so callers can wait for finalization
   pure (t1:ts)
 
   where threads = fromMaybe numCapabilities $ numThreads globals
-
 
 mkRandomGenerator :: Maybe RandomSeed -> IO (Gen (PrimState IO))
 mkRandomGenerator Nothing = createSystemRandom
 mkRandomGenerator (Just seed) = initialize seed
 
-main :: IO ()
-main = do
-     -- ask user file name and parameters to be changed
-     Options{optCommand = command, optGlobals = globals} <- parseCmdLine
+doMain :: Options -> IO ()
+doMain Options{optCommand = command, optGlobals = globals} = do
+  gen  <- mkRandomGenerator (rndSeed globals)
 
-     gen  <- mkRandomGenerator (rndSeed globals)
-
-     case command of
-       Peaks params -> peaks gen globals params >>= BS.putStr . encode . map Only
-       Curves params -> curves gen globals params >>= BS.putStr . encode . unzip5
-       MultiCurves total params -> do
-         threads <- multi gen globals (mkMultiParameters total params)
-         mapM_ Async.wait threads
+  case command of
+    Peaks params -> peaks gen globals params >>= BS.putStr . encode . map Only
+    Curves params -> curves gen globals params >>= BS.putStr . encode . unzip5
+    MultiCurves total params -> do
+      threads <- multi gen globals (CSV.encode >-> PBS.stdout) (mkMultiParameters total params)
+      mapM_ Async.wait threads
 
   where
     unzip5 (t,varV,varn,varf,varCa) = zip5 t varV varn varf varCa
 
+main :: IO ()
+main = parseCmdLine >>= doMain
 
 {-
 
