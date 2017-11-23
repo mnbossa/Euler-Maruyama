@@ -1,15 +1,16 @@
-module EuMa.CmdLine where
+module EuMa.CmdLine
+  ( Options(..)
+  , Command (..)
+  , parseCmdLine
+  , stringsToOptions)
+
+where
 
 import Options.Applicative
 import Data.Semigroup ((<>))
 import Data.Vector (singleton)
 
 import EuMa.Types
-
-parseCmdLine :: IO Options
-parseCmdLine = execParser $
-  info (optionsParser <**> helper) fullDesc
-
 
 data Options = Options
   {
@@ -75,3 +76,35 @@ parametersParser = Parameters <$>
   <*> option auto (long "fc" <> value 0.01 <> help "(0.01) Fraction of free Ca^2+ions in cytoplasm")
   <*> pure 0.0015 -- option auto (long "alpha" <> value 0.0015 <> help "(\\mu M fC^-1) Conversion from charges to molar concentration")
   <*> option auto (long "kc" <> value 0.12 <> help "(ms^-1) Rate of Ca^2+ extrusion")
+
+stringsToOptions :: [String] -> Maybe Options
+stringsToOptions ss =
+  case execParserPure defaultPrefs parserInfo ss of
+    Success options -> Just options
+    _ -> Nothing
+
+parserInfo :: ParserInfo Options
+parserInfo = info (optionsParser <**> helper) fullDesc
+
+parseCmdLine :: IO Options
+parseCmdLine = execParser parserInfo
+
+
+
+
+-- fixme use this
+-- helpText :: String
+-- helpText = "\
+-- \Generate predictions from a stochastic model for the activity of a pituitary \
+-- \lactotroph as described in the paper Fast-Activating Voltage- and \
+-- \Calcium-Dependent Potassium (BK) Conductance Promotes Bursting in Pituitary \
+-- \Cells, J. Tabak, M. Tomaiuolo, A.E. Gonzalez-Iglesias, L.S. Milescu, R. \
+-- \Bertram, the Journal of Neuroscience, 31:16855-16863, 2011. \n\
+-- \\n  Usage:\n    ./pituitary file [OPTIONS]     \n   Produce 4 .png files \
+-- \(the images of each variable trajectory vs. time) and a .txt file (spike \
+-- \lengths: number of time-step) using a fixed simulation time.\n \n \n\
+-- \   ./pituitary file.fig [OPTIONS] \n Produce 4 .fig files as above, \
+-- \but where fig is one of the following: png, pdf, jpg, jpeg. No txt \
+-- \file is produced.\n \n    ./pituitary file.txt [OPTIONS] \n \
+-- \ Produce only txt file. Simulation is run until a fixed number of spikes \
+-- \is obtained."

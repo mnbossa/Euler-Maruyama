@@ -117,24 +117,6 @@ main = do
     unzip5 (t,varV,varn,varf,varCa) = zip5 t varV varn varf varCa
 
 
--- fixme move this to the CmdLine module
-helpText :: String
-helpText = "\
-\Generate predictions from a stochastic model for the activity of a pituitary \
-\lactotroph as described in the paper Fast-Activating Voltage- and \
-\Calcium-Dependent Potassium (BK) Conductance Promotes Bursting in Pituitary \
-\Cells, J. Tabak, M. Tomaiuolo, A.E. Gonzalez-Iglesias, L.S. Milescu, R. \
-\Bertram, the Journal of Neuroscience, 31:16855-16863, 2011. \n\
-\\n  Usage:\n    ./pituitary file [OPTIONS]     \n   Produce 4 .png files \
-\(the images of each variable trajectory vs. time) and a .txt file (spike \
-\lengths: number of time-step) using a fixed simulation time.\n \n \n\
-\   ./pituitary file.fig [OPTIONS] \n Produce 4 .fig files as above, \
-\but where fig is one of the following: png, pdf, jpg, jpeg. No txt \
-\file is produced.\n \n    ./pituitary file.txt [OPTIONS] \n \
-\ Produce only txt file. Simulation is run until a fixed number of spikes \
-\is obtained."
-
-
 {-
 
 import Data.List.Split
