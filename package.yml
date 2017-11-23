@@ -34,12 +34,14 @@ library:
   source-dirs: src
   exposed-modules:
     - EuMa.Main
+    - EuMa.Types
+    - EuMa.CmdLine
 
 executables:
   pituitary: &exe
     main: Main.hs
     source-dirs: driver
-    ghc-options: &exeghc
+    ghc-options:
       -threaded
       "-with-rtsopts=-N"
     dependencies:
@@ -51,3 +53,13 @@ executables:
       -threaded
       -fprof-auto
       "-with-rtsopts=-N -p -s -h -i0.1"
+
+benchmarks:
+  pituitary-bench:
+    <<: *exe
+    source-dirs: bench
+    main: Bench.hs
+    dependencies:
+      - pituitary
+      - criterion
+      - deepseq
