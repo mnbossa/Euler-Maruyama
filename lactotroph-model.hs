@@ -99,7 +99,7 @@ initVar = Variables { varV = -60, varn = 0.1, varf = 0.01, varCa = 0.25 }
 ------------------ Random process --------------------------------------------------------------------
 wiener :: (PrimMonad m) => Double -> Double -> Gen (PrimState m) -> m Double
 wiener x dt gen = (* step) <$>  standard gen
-  where step = x * (dt ** 0.5)
+  where step = x / (dt ** 0.5)
 
 ------------------ State variables S (mostly currents) -----------------------------------------------
 data State = State { stIca    :: Double
@@ -174,6 +174,7 @@ lengthSpikes  n x0 th = comph' (n+3) x0 [0] where
        where clean yy@(y:ys) = if  y == 0 then ys else yy
              clean [] = error  "unexpected pattern in lengthSpikes"
 
+
 lengthSpikesUpTo :: (PrimMonad m) => Int -> Variables Double -> Double -> Comp m [Int]
 lengthSpikesUpTo n x0 th = comph' x0 [0] where
   comph' _ [] = error "unexpected pattern in lengthSpikesUpTo"
@@ -185,6 +186,28 @@ lengthSpikesUpTo n x0 th = comph' x0 [0] where
             | otherwise = error "unexpected pattern in lengthSpikesUpTo"
             where v = varV new
     if length hhh == (n+3) then return (take n (clean hhh)) else comph' new hhh
+       where clean yy@(y:ys) = if  y == 0 then ys else yy
+             clean [] = error  "unexpected pattern in lengthSpikes"
+
+-- Fix me: compute m1 and m2 outside comph'
+lengthSpikesUpTo' :: (PrimMonad m) => Int -> Variables Double ->  Comp m [Int]
+lengthSpikesUpTo' n x0 = comph' x0 0 [0] 10000 (-10000) where
+  comph' _ _ [] _ _ = error "unexpected pattern in lengthSpikesUpTo"
+  comph' x t hh@(h:hs) m1 m2 = do
+    In _ Global{..} _ <- ask
+    new <- eulerStep x
+    let v = varV new
+        transient = fromIntegral t * stepSize < 1000
+        m1' = if transient then min m1 v else m1    
+        m2' = if transient then max m2 v else m2    
+        hhh | transient          = hh
+            | v >= th1           = (h+1):hs
+            | v >= th2 && h > 0  = (h+1):hs
+            | v <  th2 && h > 0  = 0:hh
+            | otherwise          = hh
+            where th1 = m1 + (m2-m1)*0.5
+                  th2 = m1 + (m2-m1)*0.2
+    if length hhh == (n+3) then return (take n (clean hhh)) else comph' new (t+1) hhh m1' m2'
        where clean yy@(y:ys) = if  y == 0 then ys else yy
              clean [] = error  "unexpected pattern in lengthSpikes"
 
@@ -230,10 +253,11 @@ main = do
      if mode parameters == "peaks" then
        do
          -- more than 2x faster
-         let threshold = -35
-             compLenSpikes =  if totalSpikes global == 0 then lengthSpikes     (totalSteps  global)
-                                                         else lengthSpikesUpTo (totalSpikes global)
-         lenSpikes <- runReaderT (compLenSpikes initVar threshold ) (In parameters global gen)
+         --let threshold = -40
+         --    compLenSpikes =  if totalSpikes global == 0 then lengthSpikes     (totalSteps  global) 
+         --                                                else lengthSpikesUpTo (totalSpikes global)
+         --lenSpikes <- runReaderT (compLenSpikes initVar threshold ) (In parameters global gen)
+         lenSpikes <- runReaderT (lengthSpikesUpTo' (totalSpikes global) initVar ) (In parameters global gen)
 
          BS.putStr $ encode $ map Only lenSpikes
       else

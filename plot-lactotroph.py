@@ -15,10 +15,10 @@ fig = plt.figure()
 
 if sys.argv[2]=="peaks":
    peaks =  np.fromstring(out, dtype=int, sep='\r\n') 
-   plt.hist(peaks)
+   plt.hist(peaks/1000*0.01)
 else:
    curves = np.stack([np.fromstring( x, dtype=np.float64, sep=',') for x in  out.split()],axis=0)
-   plt.plot(curves[:,0], curves[:,1])
+   plt.plot(curves[:,0]/1000, curves[:,1])
 
 if sys.argv[1]=="screen":
     plt.show()

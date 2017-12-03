@@ -45,10 +45,11 @@ initVar = Variables { varV = -60, varn = 0.1, varf = 0.01, varCa = 0.25 }
 peaks :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m [Int]
 peaks gen global parameters = do
   -- more than 2x faster
-  let threshold = -35
-      compLenSpikes =  if totalSpikes global == 0 then lengthSpikes     (totalSteps  global)
-                                                  else lengthSpikesUpTo (totalSpikes global)
-  runReaderT (compLenSpikes initVar threshold ) (In parameters global gen)
+  --let threshold = -40
+  --    compLenSpikes =  if totalSpikes global == 0 then lengthSpikes     (totalSteps  global)
+  --                                                else lengthSpikesUpTo (totalSpikes global)
+  --runReaderT (compLenSpikes initVar threshold ) (In parameters global gen)
+  runReaderT (lengthSpikesUpTo' (totalSpikes global) initVar ) (In parameters global gen)
 
 curves :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m ([Double],[Double],[Double],[Double],[Double])
 curves gen global parameters = do
