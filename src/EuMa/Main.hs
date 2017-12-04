@@ -56,7 +56,7 @@ curves gen global parameters = do
   traj <- runReaderT (simulate (totalSteps global) initVar) $ In parameters global gen
 
   let
-    nPlot         = 5000 :: Int
+    nPlot         = min 5000 (totalSteps global) :: Int
     nskip         = totalSteps global `div` nPlot
     dtPlot        = (stepSize global)*(fromIntegral nskip)
 
