@@ -49,7 +49,7 @@ peaks gen global parameters = do
   --    compLenSpikes =  if totalSpikes global == 0 then lengthSpikes     (totalSteps  global)
   --                                                else lengthSpikesUpTo (totalSpikes global)
   --runReaderT (compLenSpikes initVar threshold ) (In parameters global gen)
-  runReaderT (lengthSpikesUpTo' (totalSpikes global) initVar ) (In parameters global gen)
+  runReaderT (computeFeatures (totalSpikes global) initVar ) (In parameters global gen)
 
 curves :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m ([Double],[Double],[Double],[Double],[Double])
 curves gen global parameters = do

@@ -3,8 +3,7 @@
 module EuMa.Pituitary
   ( Comp
   , Env(In)
-  , lengthSpikes
-  , lengthSpikesUpTo'
+  , computeFeatures
   , simulate
 
 -- we don't really need to export dotVar, but because of inlineing we *need* to export it
@@ -92,25 +91,9 @@ simulate :: (PrimMonad m) => Int -> Variables Double -> Comp m [Variables Double
 simulate n = iterateMn n eulerStep
 {-# INLINABLE simulate #-}
 
--- drop the first 3 spikes to skip transient effects
-lengthSpikes :: (PrimMonad m) => Int -> Variables Double -> Double -> Comp m [Int]
-lengthSpikes  n x0 th = comph' (n+3) x0 [0] where
-  comph' _ _ [] = error "unexpected pattern in lengthSpikes"
-  comph' m x hh@(h:hs) = do
-    new <- eulerStep x
-    let hhh | v>=th        =  (h+1):hs
-            | v<th && h==0 = hh
-            | v<th && h>0  = 0:hh
-            | otherwise = error "unexpected pattern in lengthSpikes"
-            where v = varV new
-    if m==1 then return (take n (clean hhh)) else comph' (m-1) new hhh
-       where clean yy@(y:ys) = if  y == 0 then ys else yy
-             clean [] = error  "unexpected pattern in lengthSpikes"
-{-# INLINABLE lengthSpikes #-}
-
 -- Fix me: compute m1 and m2 outside comph'
-lengthSpikesUpTo' :: (PrimMonad m) => Int -> Variables Double ->  Comp m [Int]
-lengthSpikesUpTo' n x0 = comph' x0 0 [0] 10000 (-10000) where
+computeFeatures :: (PrimMonad m) => Int -> Variables Double ->  Comp m [Int]
+computeFeatures  n x0 = comph' x0 (0 :: Int) [0] 10000 (-10000) where
   comph' _ _ [] _ _ = error "unexpected pattern in lengthSpikesUpTo"
   comph' x t hh@(h:hs) m1 m2 = do
     In _ Global{..} _ <- ask
@@ -132,6 +115,26 @@ lengthSpikesUpTo' n x0 = comph' x0 0 [0] 10000 (-10000) where
 
 
 
+
+{-
+
+-- drop the first 3 spikes to skip transient effects
+lengthSpikes :: (PrimMonad m) => Int -> Variables Double -> Double -> Comp m [Int]
+lengthSpikes  n x0 th = comph' (n+3) x0 [0] where
+  comph' _ _ [] = error "unexpected pattern in lengthSpikes"
+  comph' m x hh@(h:hs) = do
+    new <- eulerStep x
+    let hhh | v>=th        =  (h+1):hs
+            | v<th && h==0 = hh
+            | v<th && h>0  = 0:hh
+            | otherwise = error "unexpected pattern in lengthSpikes"
+            where v = varV new
+    if m==1 then return (take n (clean hhh)) else comph' (m-1) new hhh
+       where clean yy@(y:ys) = if  y == 0 then ys else yy
+             clean [] = error  "unexpected pattern in lengthSpikes"
+{-# INLINABLE lengthSpikes #-}
+
+
 -- drop the first 3 spikes to skip transient effects
 lengthSpikesUpTo :: (PrimMonad m) => Int -> Variables Double -> Double -> Comp m [Int]
 lengthSpikesUpTo n x0 th = comph' x0 [0] where
@@ -147,3 +150,7 @@ lengthSpikesUpTo n x0 th = comph' x0 [0] where
        where clean yy@(y:ys) = if  y == 0 then ys else yy
              clean [] = error  "unexpected pattern in lengthSpikes"
 {-# INLINABLE lengthSpikesUpTo #-}
+
+-}
+
+
