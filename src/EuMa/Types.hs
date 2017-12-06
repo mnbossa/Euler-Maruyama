@@ -9,7 +9,7 @@ import Data.Vector (Vector)
 
 
 data Parameters =
-  Parameters {  cm :: Double      -- (pF) Membrane capacitance
+  Parameters { cm :: Double      -- (pF) Membrane capacitance
              , gcal :: Double    -- (nS) Maximal conductance of Ca^2+ channels
              , vca :: Double     -- (mV) Reversal potential for Ca^2+ channels
              , vm :: Double      -- (mV) Voltage value at midpoint of m_\inf
@@ -58,7 +58,6 @@ instance Applicative Variables where
 
 type RandomSeed = Vector Word32
 
--------------- Global (simulation) parameters --------------------------------------------------------
 data Global = Global { stepSize    :: Double
                      , simTime     :: Double
                      , totalSteps  :: Int
@@ -66,3 +65,14 @@ data Global = Global { stepSize    :: Double
                      , numThreads :: Maybe Int
                      , rndSeed :: Maybe RandomSeed
                      } deriving (Show)
+
+data Features = Silent      { meanV :: Double       -- model is silent when (max V - min V) < 10 mV 
+                            , stdV :: Double 
+                            , maxV :: Double
+                            , minV :: Double
+                            , medianV :: Double }       |
+                Oscillating { pptime :: [Double]    -- time since last peak
+                            , amplitude :: [Double] -- max V - min V
+                            , duration :: [Double]  -- duration of active phase
+                            , area :: [Double]      -- area under V cruve and threashold
+                            , nlocmax :: [Double] } -- number of local maxima
