@@ -12,7 +12,7 @@ import System.Random.MWC (createSystemRandom, Gen, initialize)
 import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.Primitive (PrimMonad, PrimState)
 import Control.Monad (forM)
-import Data.Csv (encode, Only(..), ToRecord(..), toField)
+import Data.Csv (encode, ToRecord(..), toField) --Only(..)
 import qualified Pipes.Csv as CSV
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
@@ -41,15 +41,14 @@ initVar = Variables { varV = -60, varn = 0.1, varf = 0.01, varCa = 0.25 }
 
 ------------------ Random process --------------------------------------------------------------------
 
---data AllParams = AllParams { parameters :: Parameters, global :: Global }  deriving (Data,Typeable,Show,Eq)
-peaks :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m [Int]
-peaks gen global parameters = do
-  -- more than 2x faster
-  --let threshold = -40
-  --    compLenSpikes =  if totalSpikes global == 0 then lengthSpikes     (totalSteps  global)
-  --                                                else lengthSpikesUpTo (totalSpikes global)
-  --runReaderT (compLenSpikes initVar threshold ) (In parameters global gen)
-  runReaderT (computeFeatures (totalSpikes global) initVar ) (In parameters global gen)
+peaks :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m Features -- ([Double], [Double], [Double], [Double], [Double])
+peaks gen global parameters = runReaderT (computeFeatures (totalSpikes global) initVar ) (In parameters global gen) 
+
+-- fixme: what should return when computing several curves at a time?
+peaks1 :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m [Double]
+peaks1 gen global param = do
+   Oscillating r _ _ _ _ <- peaks gen global param 
+   return r
 
 curves :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m ([Double],[Double],[Double],[Double],[Double])
 curves gen global parameters = do
@@ -65,7 +64,7 @@ curves gen global parameters = do
     Variables{..} = sequenceA $ (take nPlot . everynth nskip) traj
   return (t, varV, varn, varf, varCa)
 
-data MultiCurveRecord = MCR Parameters [Int]
+data MultiCurveRecord = MCR Parameters [Double]
 
 instance ToRecord MultiCurveRecord where
   toRecord (MCR params xs) = toRecord params <> V.fromList (map toField xs)
@@ -88,7 +87,7 @@ multi gen globals process ps = do
   ts <- forM [1..threads] $ \_ ->
     Async.async $ runEffect $
               PCon.fromInput input
-                >-> P.mapM (\p -> MCR p <$> peaks gen globals p)
+                >-> P.mapM (\p -> MCR p <$> peaks1 gen globals p)
                 >-> process
 
   pure (t1:ts)
@@ -104,7 +103,7 @@ doMain Options{optCommand = command, optGlobals = globals} = do
   gen  <- mkRandomGenerator (rndSeed globals)
 
   case command of
-    Peaks params -> peaks gen globals params >>= BS.putStr . encode . map Only
+    Peaks params -> peaks gen globals params >>= BS.putStr . encodeFeat
     Curves params -> curves gen globals params >>= BS.putStr . encode . unzip5
     MultiCurves total params -> do
       threads <- multi gen globals (CSV.encode >-> PBS.stdout) (mkMultiParameters total params)
@@ -112,6 +111,8 @@ doMain Options{optCommand = command, optGlobals = globals} = do
 
   where
     unzip5 (t,varV,varn,varf,varCa) = zip5 t varV varn varf varCa
+    encodeFeat Oscillating{..} = encode . unzip5 $ ( pptime, amplitude, duration, area, nlocmax)
+    encodeFeat Silent{..}      = encode [(meanV, stdV, maxV, minV)]
 
 main :: IO ()
 main = parseCmdLine >>= doMain

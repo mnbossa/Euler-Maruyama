@@ -15,6 +15,7 @@ import Control.Monad.Trans.Reader (ReaderT, ask)
 import System.Random.MWC (Gen)
 import System.Random.MWC.Distributions (standard)
 import Control.Monad.Primitive (PrimState, PrimMonad)
+import Control.Monad ((>=>))
 
 import EuMa.Types
 
@@ -91,30 +92,56 @@ simulate :: (PrimMonad m) => Int -> Variables Double -> Comp m [Variables Double
 simulate n = iterateMn n eulerStep
 {-# INLINABLE simulate #-}
 
--- Fix me: compute m1 and m2 outside comph'
-computeFeatures :: (PrimMonad m) => Int -> Variables Double ->  Comp m [Int]
-computeFeatures  n x0 = comph' x0 (0 :: Int) [0] 10000 (-10000) where
-  comph' _ _ [] _ _ = error "unexpected pattern in lengthSpikesUpTo"
-  comph' x t hh@(h:hs) m1 m2 = do
-    In _ Global{..} _ <- ask
-    new <- eulerStep x
-    let v = varV new
-        transient = fromIntegral t * stepSize < 1000
-        m1' = if transient then min m1 v else m1    
-        m2' = if transient then max m2 v else m2    
-        hhh | transient          = hh
-            | v >= th1           = (h+1):hs
-            | v >= th2 && h > 0  = (h+1):hs
-            | v <  th2 && h > 0  = 0:hh
-            | otherwise          = hh
-            where th1 = m1 + (m2-m1)*0.5
-                  th2 = m1 + (m2-m1)*0.2
-    if length hhh == (n+3) then return (take n (clean hhh)) else comph' new (t+1) hhh m1' m2'
-       where clean yy@(y:ys) = if  y == 0 then ys else yy
-             clean [] = error  "unexpected pattern in lengthSpikes"
+applyM :: Monad m => Int -> (a -> m a) -> a -> m a
+applyM n f = foldr (>=>) return (replicate n f) 
 
+updateSilent :: (PrimMonad m) => (Variables Double, Features) -> Comp m (Variables Double, Features)
+updateSilent (_, Oscillating{..}) = error "unexpected pattern in updateSilent"
+updateSilent (x, Silent s s2 m0 m1 ) = do
+  new <- eulerStep x 
+  let v = varV new
+  return (new, Silent (s + v) (s2 + v^(2 :: Int)) (min m0 v) (max m1 v) )  
 
+compSilent :: (PrimMonad m) => Variables Double -> Int -> Comp m Features
+compSilent x n = do
+  (_, Silent{..} ) <- applyM n updateSilent (x, Silent 0 0 10000 (-10000) ) 
+  let m = meanV / fromIntegral n
+      v = stdV / fromIntegral n - m^(2 :: Int) 
+  return $ Silent m (sqrt v) minV maxV 
 
+-- fixme: (TODO) compute the rest of the features 
+compOscill :: (PrimMonad m) => Variables Double -> Int ->  Double -> Double -> Comp m Features
+compOscill x0 n th1 th2 = do 
+  In _ Global{..} _ <- ask
+  let steps2time = map ((stepSize *) . fromIntegral) 
+  durTime <- steps2time <$> comph' x0 ([0] :: [Int])
+  return $ Oscillating durTime durTime durTime durTime durTime
+  where comph' _ [] = error "unexpected pattern in compOscill"
+        comph' x hh@(h:hs) = do    
+           new <- eulerStep x
+           let v = varV new
+               hhh | v >= th1           = (h+1):hs
+                   | v >= th2 && h > 0  = (h+1):hs
+                   | v <  th2 && h > 0  = 0:hh
+                   | otherwise          = hh
+           if length hhh == (n+3) then return (take n (clean hhh)) else comph' new  hhh
+             where clean yy@(y:ys) = if  y == 0 then ys else yy
+                   clean [] = error  "unexpected pattern in compOscill"
+
+computeFeatures :: (PrimMonad m) => Int -> Variables Double ->  Comp m Features
+computeFeatures nPeaks x0 = do
+  In _ Global{..} _ <- ask
+  let sec2n s = round $ s*1000.0/stepSize
+      dropFirst s  = applyM (sec2n s) eulerStep
+      trackAmplitud (x, m0, m1) = eulerStep x >>= \new -> return (new, min m0 (varV new), max m1 (varV new))
+      amplitudFirst n x = applyM n trackAmplitud (x, 10000, -10000)
+  -- drop first 5 seconds, compute max V and min V during the next 5 seconds
+  (new, m0, m1) <- amplitudFirst (sec2n 5) =<< dropFirst 5 x0
+  let th1 = m0 + (m1-m0)*0.5
+      th2 = m0 + (m1-m0)*0.2
+  -- compute features from next n peaks if range of V is larger than 20 mV
+  -- or signal statistics (mean, max, etc.) during 5 seconds
+  if m1-m0 < 20 then compSilent new (sec2n 5) else compOscill new nPeaks th1 th2
 
 {-
 

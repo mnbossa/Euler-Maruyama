@@ -68,9 +68,8 @@ data Global = Global { stepSize    :: Double
 
 data Features = Silent      { meanV :: Double       -- model is silent when (max V - min V) < 10 mV 
                             , stdV :: Double 
-                            , maxV :: Double
                             , minV :: Double
-                            , medianV :: Double }       |
+                            , maxV :: Double }       |
                 Oscillating { pptime :: [Double]    -- time since last peak
                             , amplitude :: [Double] -- max V - min V
                             , duration :: [Double]  -- duration of active phase
