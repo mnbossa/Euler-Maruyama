@@ -6,7 +6,7 @@ module EuMa.Main
   (main, doMain, peaks, curves, multi, mkRandomGenerator, MultiCurveRecord(..))
 where
 
-import Data.List (zip5)
+import Data.List (zip5, zip6)
 -- import System.Environment --args <- getArgs
 import System.Random.MWC (createSystemRandom, Gen, initialize)
 import Control.Monad.Trans.Reader (runReaderT)
@@ -37,7 +37,7 @@ import EuMa.CmdLine
 
 -- Initial value for variables
 initVar :: Variables Double
-initVar = Variables { varV = -60, varn = 0.1, varf = 0.01, varCa = 0.25 }
+initVar = Variables { varV = -60, varn = 0.1, varb = 0.1, varh = 0.1, varCa = 0.1 }
 
 ------------------ Random process --------------------------------------------------------------------
 
@@ -50,7 +50,7 @@ peaks1 gen global param = do
    Oscillating r _ _ _ _ <- peaks gen global param 
    return r
 
-curves :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m ([Double],[Double],[Double],[Double],[Double])
+curves :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m ([Double],[Double],[Double],[Double],[Double], [Double])
 curves gen global parameters = do
   traj <- runReaderT (simulate (totalSteps global) initVar) $ In parameters global gen
 
@@ -62,7 +62,7 @@ curves gen global parameters = do
     everynth k xs = y:(everynth k ys) where y:ys = drop (k-1) xs
     t =  map ((dtPlot*) . fromIntegral) [1..nPlot]
     Variables{..} = sequenceA $ (take nPlot . everynth nskip) traj
-  return (t, varV, varn, varf, varCa)
+  return (t, varV, varn, varb, varh, varCa)
 
 data MultiCurveRecord = MCR Parameters [Double]
 
@@ -104,13 +104,14 @@ doMain Options{optCommand = command, optGlobals = globals} = do
 
   case command of
     Peaks params -> peaks gen globals params >>= BS.putStr . encodeFeat
-    Curves params -> curves gen globals params >>= BS.putStr . encode . unzip5
+    Curves params -> curves gen globals params >>= BS.putStr . encode . unzip6
     MultiCurves total params -> do
       threads <- multi gen globals (CSV.encode >-> PBS.stdout) (mkMultiParameters total params)
       mapM_ Async.wait threads
 
   where
-    unzip5 (t,varV,varn,varf,varCa) = zip5 t varV varn varf varCa
+    unzip6 (t,varV,varn,varb,varh,varCa) = zip6 t varV varn varb varh varCa
+    unzip5 (x1, x2, x3, x4, x5) = zip5 x1 x2 x3 x4 x5
     encodeFeat Oscillating{..} = encode . unzip5 $ ( pptime, amplitude, duration, area, nlocmax)
     encodeFeat Silent{..}      = encode [(meanV, stdV, maxV, minV)]
 

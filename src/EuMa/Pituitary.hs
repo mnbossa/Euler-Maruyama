@@ -25,14 +25,17 @@ type Comp m a = ReaderT (Env m) m a
 
 
 ------------------ State variables S (mostly currents) -----------------------------------------------
-data State = State { stIca    :: Double
-                   , stIk     :: Double
-                   , stninf   :: Double
-                   , stISK    :: Double
-                   , stIBK    :: Double
-                   , stfinf   :: Double
-                   , stIleak  :: Double
-                   , stInoise :: Double
+data State = State { stICa    :: Double -- voltage-gated Ca^2+ current
+                   , stIK     :: Double -- delayed rectifier K^+ current
+                   , stISK    :: Double -- Ca^2+-activated K^+ current
+                   , stIKir   :: Double -- inward rectifying K^+ current
+                   , stIBK    :: Double -- a BK-type K^+ current
+                   , stIA     :: Double -- A-type K^+ current
+                   , stIL     :: Double -- leak current
+                   , stInoise :: Double -- stochastic current reflecting channel noise
+                   , ninf     :: Double
+                   , binf     :: Double
+                   , hinf     :: Double
                    }
 
 wiener :: (PrimMonad m) => Double -> Double -> Gen (PrimState m) -> m Double
@@ -45,17 +48,22 @@ state :: (PrimMonad m) => Variables Double -> Comp m State
 state  Variables{..} = do
   In Parameters{..} Global{..} gen  <- ask
   eta <- wiener noise stepSize gen
-  let invminf = 1 + exp ((vm-varV)/sm)
+  let xinf v s = 1/ (1 + exp ((v-varV)/s))
       sinf = varCa**2/(varCa**2+ks**2)
-
-  return State { stIca    = gcal/invminf*(varV - vca)
-               , stIk     = gk*varn*(varV - vk)
-               , stninf   = 1/(1 + exp ((vn-varV)/sn))
-               , stISK    = gsk*sinf*(varV-vk)
-               , stIBK    = gbk*varf*(varV - vk)
-               , stfinf   = 1/(1 + exp ((vf - varV)/sf))
-               , stIleak  = gl*(varV - vl)
+      minf = xinf vm sm
+      kinf = xinf vk sk
+      ainf = xinf va sa
+  return State { stICa    = gca * minf * (varV - eca)
+               , stIK     = gk  * varn * (varV - ek)
+               , stISK    = gsk * sinf * (varV - ek)
+               , stIKir   = gkir* kinf * (varV - ek)
+               , stIBK    = gbk * varb * (varV - ek)
+               , stIA     = ga  * ainf * varh * (varV - ek)
+               , stIL     = gl  * (varV - el)
                , stInoise = eta
+               , ninf     = xinf vn sn
+               , binf     = xinf vb sb
+               , hinf     = xinf vh sh
                }
 {-# INLINABLE state #-}
 
@@ -64,10 +72,11 @@ dotVar :: (PrimMonad m) => Variables Double -> Comp m (Variables Double)
 dotVar v@Variables{..} = do
      In Parameters{..} _ _ <- ask
      State{..} <- state v
-     return Variables { varV  = -(stIca + stIk + stISK + stIBK + stIleak + stInoise)/cm
-                      , varn  = (stninf - varn)/taun
-                      , varf  = (stfinf - varf)/taubk
-                      , varCa = -fc*(alpha*stIca + kc*varCa) }
+     return Variables { varV  = -(stICa + stIK + stISK + stIKir + stIBK + stIA + stIL + stInoise)/cm
+                      , varn  = (ninf - varn)/taun
+                      , varb  = (binf - varb)/taubk
+                      , varh  = (hinf - varh)/tauh
+                      , varCa = -fc*(alpha*stICa + kc*varCa) }
 -- notice we need to force inlineing for this one, ghc seems to have the wrong heuristic
 -- without inlining here performance degrades 10x
 {-# INLINE dotVar #-}
