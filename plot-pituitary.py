@@ -7,6 +7,8 @@
 # D) --gSK 3   --gK 0  --gCa 3
 # E) --gCa 2.5 --gK 1  --gSK 0.5
 
+# python plot-pituitary.py screen 1 --simTime 90000 curves --gCa 1.1002976287630477 --gK 3.2398755933668673 --gSK 2.6308369648429095 --gKir 0.6889231657480497 --gBK 0.6235830102910045 --gA 23.88520250181707 --gL 0.24274716086400577 --kc 0.16697537643047153 --noise 5.887695689604206
+
 import matplotlib.pyplot as plt
 import numpy as np
 import sys

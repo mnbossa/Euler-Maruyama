@@ -31,16 +31,11 @@ seedParser = singleton <$> option auto (long "rndSeed")
 
 globalParser :: Parser Global
 globalParser = Global <$>
-     option auto (long "stepSize" <> value step)
- <*> option auto (long "simTime" <> value time)
- <*> option auto (long "totalSteps" <> value steps)
+     option auto (long "stepSize" <> value 0.01)
+ <*> option auto (long "simTime" <> value 5000.0)
  <*> option auto (long "totalSpikes" <> value 100)
  <*> optional (option auto (long "numThreads"))
  <*> (fmap Just seedParser <|> pure Nothing)
- where
-    step = 0.01
-    time = 5000.0
-    steps = (floor $ time/step)
 
 optionsParser :: Parser Options
 optionsParser = Options <$> globalParser <*> cmdParser

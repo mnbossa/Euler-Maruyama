@@ -72,11 +72,13 @@ type RandomSeed = Vector Word32
 
 data Global = Global { stepSize    :: Double
                      , simTime     :: Double
-                     , totalSteps  :: Int
                      , totalSpikes :: Int
                      , numThreads :: Maybe Int
                      , rndSeed :: Maybe RandomSeed
                      } deriving (Show)
+
+totalSteps :: Global -> Int
+totalSteps Global{..} = floor $ simTime / stepSize
 
 -- model is silent when (max V - min V) < 10 mV
 data Features = Silent      { meanV :: Double       
