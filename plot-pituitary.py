@@ -16,6 +16,8 @@ import subprocess as sp
 
 out = sp.Popen(["dist/build/pituitary/pituitary"]+sys.argv[3:], stdout = sp.PIPE).communicate()[0]
 
+i = int(sys.argv[2])
+
 def plt_show():
   if sys.argv[1]=="screen":
     plt.show()
@@ -28,11 +30,10 @@ if sys.argv[3]=="peaks":
      print(peaks[0]) 
    else:
      fig = plt.figure()
-     plt.hist(peaks[:,0]/1000)
+     plt.hist(peaks[:,i-1]/1000)
      plt_show()
 else:
    fig = plt.figure()
-   i = int(sys.argv[2])
    curves = np.stack([np.fromstring( x, dtype=np.float64, sep=',') for x in  out.split()],axis=0)
    plt.plot(curves[:,0]/1000, curves[:,i])
    plt_show()

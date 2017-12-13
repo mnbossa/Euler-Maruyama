@@ -123,19 +123,19 @@ compOscill :: (PrimMonad m) => Variables Double -> Int ->  Double -> Double -> C
 compOscill x0 n th1 th2 = do 
   In _ Global{..} _ <- ask
   let steps2time = map ((stepSize *) . fromIntegral) 
-  durTime <- steps2time <$> comph' x0 ([0] :: [Int])
-  return $ Oscillating durTime durTime durTime durTime durTime
+  (peakLengthCounts, btwPeakCounts) <- unzip <$> comph' x0 ([(0,0)] :: [(Int,Int)])
+  let zeros = replicate n 0
+  return $ Oscillating (steps2time peakLengthCounts) (steps2time btwPeakCounts) zeros zeros zeros
   where comph' _ [] = error "unexpected pattern in compOscill"
         comph' x hh@(h:hs) = do    
            new <- eulerStep x
            let v = varV new
-               hhh | v >= th1           = (h+1):hs
-                   | v >= th2 && h > 0  = (h+1):hs
-                   | v <  th2 && h > 0  = 0:hh
-                   | otherwise          = hh
-           if length hhh == (n+3) then return (take n (clean hhh)) else comph' new  hhh
-             where clean yy@(y:ys) = if  y == 0 then ys else yy
-                   clean [] = error  "unexpected pattern in compOscill"
+               (h0, h1) = h
+               hhh | v >= th1            = (h0+1, h1+1):hs -- peak starts: count peak duration
+                   | v >= th2 && h0 > 0  = (h0+1, h1+1):hs -- inside peak: add to peak duration
+                   | v <  th2 && h0 > 0  = (0,0):hh      -- peak ends: start over both counts
+                   | otherwise           = (h0, h1+1):hs -- outside peak: count douration between peaks
+           if length hhh == (n+3) then return (take n (tail hhh)) else comph' new  hhh
 
 computeFeatures :: (PrimMonad m) => Int -> Variables Double ->  Comp m Features
 computeFeatures nPeaks x0 = do
