@@ -21,7 +21,7 @@ main = do
         benchIt "peaks" peakOptions $ \globals (Peaks params) gen ->
             getFeat <$> M.peaks gen globals params
 
-      , benchIt "curves" curvesOptions $ \globals (Curves params) gen ->
+{-      , benchIt "curves" curvesOptions $ \globals (Curves params) gen ->
             M.curves gen globals params
 
       , benchIt "multi" multiOptions $
@@ -29,7 +29,7 @@ main = do
           in \globals (MultiCurves n params) gen -> do
                 threads <- M.multi gen globals consumer (replicate n params)
                 mapM_ Async.wait threads
-      ]
+ -}   ]
   where
    getFeat Oscillating{..} = pptime
    getFeat Silent{..}      = [meanV]

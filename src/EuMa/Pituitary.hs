@@ -15,6 +15,7 @@ module EuMa.Pituitary
 --   , updateSilent
 --   , compSilent
 --   , compOscill
+--   , getPeakFeatures 
 -- we don't really need to export dotVar, but because of inlineing we *need* to export it
 -- to avoid a big performance penalty
   , dotVar
@@ -131,14 +132,29 @@ compSilent x n = do
       v = stdV / fromIntegral n - m^(2 :: Int)
   return $ Silent m (sqrt v) minV maxV
 
+getPeakFeatures :: (PrimMonad m) => Variables Double -> Double -> Double -> Comp m (Variables Double, Int, Int)
+getPeakFeatures y th1 th2 = compfeat y 0 0 where
+  compfeat x h0 h1 = do
+    new <- eulerStep x
+    let v = varV new
+    let res | v >= th1            = compfeat new (h0+1) (h1+1) -- peak starts: count peak duration
+            | v >= th2 && h0 > 0  = compfeat new (h0+1) (h1+1) -- inside peak: add to peak duration
+            | v < th2 && h0 > 0   = return (new, h0, h1)   -- peak ends: start over both counts
+            | otherwise           = compfeat new h0 (h1+1) -- outside peak: count douration between peaks
+    res
+
 -- FIXME: compute the rest of the features
 compOscill :: (PrimMonad m) => Variables Double -> Double -> Double -> Comp m Features
 compOscill x0 th1 th2 = do
   In _ Global{..} _ <- ask
   let steps2time = map ((stepSize *) . fromIntegral)
-  (peakLengthCounts, btwPeakCounts) <- unzip <$> comph' x0 totalSpikes ([(0,0)] :: [(Int,Int)])
+  (peakLengthCounts, btwPeakCounts) <- unzip <$> comph' x0 totalSpikes ([] :: [(Int, Int)]) -- ([(0,0)] :: [(Int,Int)])
   let zeros = replicate totalSpikes 0
   return $ Oscillating (steps2time peakLengthCounts) (steps2time btwPeakCounts) zeros zeros zeros
+  where comph' x n hh = do
+           (new, h0, h1) <- getPeakFeatures x th1 th2
+           if length hh == n then return hh else comph' new n ((h0, h1):hh)
+{- getPeakFeatures solve the most serious memory leaking problem
   where comph' _ _ [] = error "unexpected pattern in compOscill"
         comph' x n hh@(h:hs) = do
            new <- eulerStep x
@@ -149,10 +165,19 @@ compOscill x0 th1 th2 = do
                    | v <  th2 && h0 > 0  = (0,0):hh      -- peak ends: start over both counts
                    | otherwise           = (h0, h1+1):hs -- outside peak: count douration between peaks
            if length hhh == (n+3) then return (take n (tail hhh)) else comph' new n hhh
+-}
 
 -- FIXME: Fold and max/min monoids should be used here ?
--- trackAmplitud :: PrimMonad m => (Variables Double, Double, Double) -> Comp m (Variables Double, Double, Double)
--- trackAmplitud (x, m0, m1) = eulerStep x >>= \new -> return (new, min m0 (varV new), max m1 (varV new))
+{- slower and do not fix the memory leak problem
+amplitudFirst :: PrimMonad m => Int -> Variables Double -> Comp m (Variables Double, Double, Double)
+amplitudFirst m y = trackAmplitud y m (1000 :: Double) (-1000 :: Double) where
+  trackAmplitud x n m0 m1 = do
+    new <- eulerStep x
+    let v = varV new
+        m0' = min m0 v
+        m1' = max m1 v
+    if n==0 then return (new, m0', m1') else trackAmplitud new (n-1) m0' m1' 
+-}
 
 computeFeatures :: (PrimMonad m) => Variables Double ->  Comp m Features
 computeFeatures x0 = do
