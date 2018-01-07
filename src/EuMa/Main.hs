@@ -28,23 +28,14 @@ import EuMa.Types
 import EuMa.Pituitary
 import EuMa.CmdLine
 
------------------- Simulation parameters -------------------------------------------------------------
--- Default parameter values
 
------------------- Model variables -------------------------------------------------------------------
---   dV/dt = dotVar( S )
---       S = state(  V )
-
--- Initial value for variables
 initVar :: Variables Double
 initVar = Variables { varV = -60, varn = 0.1, varb = 0.1, varh = 0.1, varCa = 0.1 }
 
------------------- Random process --------------------------------------------------------------------
+peaks :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m Features
+peaks gen global parameters = runReaderT (computeFeatures initVar ) (In parameters global gen)
 
-peaks :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m Features -- ([Double], [Double], [Double], [Double], [Double])
-peaks gen global parameters = runReaderT (computeFeatures (totalSpikes global) initVar ) (In parameters global gen) 
-
--- fixme: what should return when computing several curves at a time?
+-- FIXME: what should return when computing several curves at a time?
 peaks1 :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m [Double]
 peaks1 gen global param = do
    Oscillating r _ _ _ _ <- peaks gen global param 
@@ -69,7 +60,7 @@ data MultiCurveRecord = MCR Parameters [Double]
 instance ToRecord MultiCurveRecord where
   toRecord (MCR params xs) = toRecord params <> V.fromList (map toField xs)
 
--- fixme this just repeats the same parameters multiple times, we need to create
+-- FIXME: this just repeats the same parameters multiple times, we need to create
 -- a combination of different parameters
 mkMultiParameters :: Int -> Parameters -> [Parameters]
 mkMultiParameters n = replicate n
@@ -112,7 +103,7 @@ doMain Options{optCommand = command, optGlobals = globals} = do
   where
     unzip6 (t,varV,varn,varb,varh,varCa) = zip6 t varV varn varb varh varCa
     unzip5 (x1, x2, x3, x4, x5) = zip5 x1 x2 x3 x4 x5
-    encodeFeat Oscillating{..} = encode . unzip5 $ ( pptime, amplitude, duration, area, nlocmax)
+    encodeFeat Oscillating{..} = encode . unzip5 $ ( duration, pptime, amplitude , area, nlocmax)
     encodeFeat Silent{..}      = encode [(meanV, stdV, maxV, minV)]
 
 main :: IO ()

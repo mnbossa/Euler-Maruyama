@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Main where
 
 import Data.Maybe (fromJust)
@@ -17,7 +19,7 @@ main = do
 
   defaultMain [
         benchIt "peaks" peakOptions $ \globals (Peaks params) gen ->
-            M.peaks gen globals params
+            getFeat <$> M.peaks gen globals params
 
       , benchIt "curves" curvesOptions $ \globals (Curves params) gen ->
             M.curves gen globals params
@@ -28,6 +30,9 @@ main = do
                 threads <- M.multi gen globals consumer (replicate n params)
                 mapM_ Async.wait threads
       ]
+  where
+   getFeat Oscillating{..} = pptime
+   getFeat Silent{..}      = [meanV]
 
 benchIt :: NFData a => String -> Options -> (Global -> Command -> GenIO -> IO a) -> Benchmark
 benchIt name options f =

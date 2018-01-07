@@ -81,12 +81,12 @@ totalSteps :: Global -> Int
 totalSteps Global{..} = floor $ simTime / stepSize
 
 -- model is silent when (max V - min V) < 10 mV
-data Features = Silent      { meanV :: Double       
-                            , stdV :: Double 
+data Features = Silent      { meanV :: Double
+                            , stdV :: Double
                             , minV :: Double
                             , maxV :: Double }       |
-                Oscillating { pptime :: [Double]    -- time since last peak
+                Oscillating { duration :: [Double]  -- duration of active phase
+                            , pptime :: [Double]    -- time since last peak
                             , amplitude :: [Double] -- (fixme TBD!) max V - min V
-                            , duration :: [Double]  -- (fixme TBD!) duration of active phase
                             , area :: [Double]      -- (fixme TBD!) area under V cruve and threashold
                             , nlocmax :: [Double] } -- (fixme TBD!) number of local maxima

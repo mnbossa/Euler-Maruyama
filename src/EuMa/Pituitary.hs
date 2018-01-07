@@ -1,11 +1,20 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE BangPatterns #-}
 
 module EuMa.Pituitary
   ( Comp
   , Env(In)
   , computeFeatures
   , simulate
-
+-- for profiling
+--   , applyM
+--   , wiener
+--   , state
+--   , eulerStep
+--   , iterateMn
+--   , updateSilent
+--   , compSilent
+--   , compOscill
 -- we don't really need to export dotVar, but because of inlineing we *need* to export it
 -- to avoid a big performance penalty
   , dotVar
@@ -16,6 +25,8 @@ import System.Random.MWC (Gen)
 import System.Random.MWC.Distributions (standard)
 import Control.Monad.Primitive (PrimState, PrimMonad)
 import Control.Monad ((>=>))
+-- import qualified Control.Fold as Fold
+-- import Data.List (foldl')
 
 import EuMa.Types
 
@@ -102,32 +113,34 @@ simulate n = iterateMn n eulerStep
 {-# INLINABLE simulate #-}
 
 applyM :: Monad m => Int -> (a -> m a) -> a -> m a
-applyM n f = foldr (>=>) return (replicate n f) 
+applyM n f = foldr (>=>) return (replicate n f)
+-- applyM m f x = applyM' m (return x) where
+--  applyM' n !x' = let new = x' >>= f  in if n == 1 then new else applyM' (n-1) new
 
 updateSilent :: (PrimMonad m) => (Variables Double, Features) -> Comp m (Variables Double, Features)
 updateSilent (_, Oscillating{..}) = error "unexpected pattern in updateSilent"
 updateSilent (x, Silent s s2 m0 m1 ) = do
-  new <- eulerStep x 
+  new <- eulerStep x
   let v = varV new
-  return (new, Silent (s + v) (s2 + v^(2 :: Int)) (min m0 v) (max m1 v) )  
+  return (new, Silent (s + v) (s2 + v^(2 :: Int)) (min m0 v) (max m1 v) )
 
 compSilent :: (PrimMonad m) => Variables Double -> Int -> Comp m Features
 compSilent x n = do
-  (_, Silent{..} ) <- applyM n updateSilent (x, Silent 0 0 10000 (-10000) ) 
+  (_, Silent{..} ) <- applyM n updateSilent (x, Silent 0 0 10000 (-10000) )
   let m = meanV / fromIntegral n
-      v = stdV / fromIntegral n - m^(2 :: Int) 
-  return $ Silent m (sqrt v) minV maxV 
+      v = stdV / fromIntegral n - m^(2 :: Int)
+  return $ Silent m (sqrt v) minV maxV
 
--- fixme: (TODO) compute the rest of the features 
-compOscill :: (PrimMonad m) => Variables Double -> Int ->  Double -> Double -> Comp m Features
-compOscill x0 n th1 th2 = do 
+-- FIXME: compute the rest of the features
+compOscill :: (PrimMonad m) => Variables Double -> Double -> Double -> Comp m Features
+compOscill x0 th1 th2 = do
   In _ Global{..} _ <- ask
-  let steps2time = map ((stepSize *) . fromIntegral) 
-  (peakLengthCounts, btwPeakCounts) <- unzip <$> comph' x0 ([(0,0)] :: [(Int,Int)])
-  let zeros = replicate n 0
+  let steps2time = map ((stepSize *) . fromIntegral)
+  (peakLengthCounts, btwPeakCounts) <- unzip <$> comph' x0 totalSpikes ([(0,0)] :: [(Int,Int)])
+  let zeros = replicate totalSpikes 0
   return $ Oscillating (steps2time peakLengthCounts) (steps2time btwPeakCounts) zeros zeros zeros
-  where comph' _ [] = error "unexpected pattern in compOscill"
-        comph' x hh@(h:hs) = do    
+  where comph' _ _ [] = error "unexpected pattern in compOscill"
+        comph' x n hh@(h:hs) = do
            new <- eulerStep x
            let v = varV new
                (h0, h1) = h
@@ -135,10 +148,14 @@ compOscill x0 n th1 th2 = do
                    | v >= th2 && h0 > 0  = (h0+1, h1+1):hs -- inside peak: add to peak duration
                    | v <  th2 && h0 > 0  = (0,0):hh      -- peak ends: start over both counts
                    | otherwise           = (h0, h1+1):hs -- outside peak: count douration between peaks
-           if length hhh == (n+3) then return (take n (tail hhh)) else comph' new  hhh
+           if length hhh == (n+3) then return (take n (tail hhh)) else comph' new n hhh
 
-computeFeatures :: (PrimMonad m) => Int -> Variables Double ->  Comp m Features
-computeFeatures nPeaks x0 = do
+-- FIXME: Fold and max/min monoids should be used here ?
+-- trackAmplitud :: PrimMonad m => (Variables Double, Double, Double) -> Comp m (Variables Double, Double, Double)
+-- trackAmplitud (x, m0, m1) = eulerStep x >>= \new -> return (new, min m0 (varV new), max m1 (varV new))
+
+computeFeatures :: (PrimMonad m) => Variables Double ->  Comp m Features
+computeFeatures x0 = do
   In _ Global{..} _ <- ask
   let sec2n s = round $ s*1000.0/stepSize
       dropFirst s  = applyM (sec2n s) eulerStep
@@ -150,7 +167,7 @@ computeFeatures nPeaks x0 = do
       th2 = m0 + (m1-m0)*0.2
   -- compute features from next n peaks if range of V is larger than 20 mV
   -- or signal statistics (mean, max, etc.) during 5 seconds
-  if m1-m0 < 20 then compSilent new (sec2n 5) else compOscill new nPeaks th1 th2
+  if m1-m0 < 20 then compSilent new (sec2n 5) else compOscill new th1 th2
 
 {-
 
