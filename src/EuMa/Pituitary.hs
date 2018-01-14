@@ -7,15 +7,15 @@ module EuMa.Pituitary
   , computeFeatures
   , simulate
 -- for profiling
---   , applyM
---   , wiener
---   , state
---   , eulerStep
---   , iterateMn
---   , updateSilent
---   , compSilent
---   , compOscill
---   , getPeakFeatures 
+  , applyM
+  , wiener
+  , state
+  , eulerStep
+  , iterateMn
+  , updateSilent
+  , compSilent
+  , compOscill
+  , getPeakFeatures 
 -- we don't really need to export dotVar, but because of inlineing we *need* to export it
 -- to avoid a big performance penalty
   , dotVar
@@ -115,6 +115,7 @@ simulate n = iterateMn n eulerStep
 
 applyM :: Monad m => Int -> (a -> m a) -> a -> m a
 applyM n f = foldr (>=>) return (replicate n f)
+{-# INLINABLE applyM #-}
 -- applyM m f x = applyM' m (return x) where
 --  applyM' n !x' = let new = x' >>= f  in if n == 1 then new else applyM' (n-1) new
 
@@ -124,6 +125,7 @@ updateSilent (x, Silent s s2 m0 m1 ) = do
   new <- eulerStep x
   let v = varV new
   return (new, Silent (s + v) (s2 + v^(2 :: Int)) (min m0 v) (max m1 v) )
+{-# INLINABLE updateSilent #-}
 
 compSilent :: (PrimMonad m) => Variables Double -> Int -> Comp m Features
 compSilent x n = do
@@ -131,6 +133,7 @@ compSilent x n = do
   let m = meanV / fromIntegral n
       v = stdV / fromIntegral n - m^(2 :: Int)
   return $ Silent m (sqrt v) minV maxV
+{-# INLINABLE compSilent #-}
 
 getPeakFeatures :: (PrimMonad m) => Variables Double -> Double -> Double -> Comp m (Variables Double, Int, Int)
 getPeakFeatures y th1 th2 = compfeat y 0 0 where
@@ -142,6 +145,7 @@ getPeakFeatures y th1 th2 = compfeat y 0 0 where
             | v < th2 && h0 > 0   = return (new, h0, h1)   -- peak ends: start over both counts
             | otherwise           = compfeat new h0 (h1+1) -- outside peak: count douration between peaks
     res
+{-# INLINABLE getPeakFeatures #-}
 
 -- FIXME: compute the rest of the features
 compOscill :: (PrimMonad m) => Variables Double -> Double -> Double -> Comp m Features
@@ -166,6 +170,7 @@ compOscill x0 th1 th2 = do
                    | otherwise           = (h0, h1+1):hs -- outside peak: count douration between peaks
            if length hhh == (n+3) then return (take n (tail hhh)) else comph' new n hhh
 -}
+{-# INLINABLE compOscill #-}
 
 -- FIXME: Fold and max/min monoids should be used here ?
 -- Do not produce memory leakes
@@ -177,6 +182,7 @@ amplitudFirst m y = trackAmplitud y m (1000 :: Double) (-1000 :: Double) where
         m0' = min m0 v
         m1' = max m1 v
     if n==0 then return (new, m0', m1') else trackAmplitud new (n-1) m0' m1' 
+{-# INLINABLE amplitudFirst #-}
 
 computeFeatures :: (PrimMonad m) => Variables Double ->  Comp m Features
 computeFeatures x0 = do
@@ -192,6 +198,7 @@ computeFeatures x0 = do
   -- compute features from next n peaks if range of V is larger than 20 mV
   -- or signal statistics (mean, max, etc.) during 5 seconds
   if m1-m0 < 20 then compSilent new (sec2n 5) else compOscill new th1 th2
+{-# INLINABLE computeFeatures #-}
 
 {-
 
