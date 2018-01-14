@@ -154,7 +154,7 @@ compOscill x0 th1 th2 = do
   where comph' x n hh = do
            (new, h0, h1) <- getPeakFeatures x th1 th2
            if length hh == n then return hh else comph' new n ((h0, h1):hh)
-{- getPeakFeatures solve the most serious memory leaking problem
+{- getPeakFeatures solves the most serious memory leaking problem
   where comph' _ _ [] = error "unexpected pattern in compOscill"
         comph' x n hh@(h:hs) = do
            new <- eulerStep x
@@ -168,24 +168,23 @@ compOscill x0 th1 th2 = do
 -}
 
 -- FIXME: Fold and max/min monoids should be used here ?
-{- slower and do not fix the memory leak problem
+-- Do not produce memory leakes
 amplitudFirst :: PrimMonad m => Int -> Variables Double -> Comp m (Variables Double, Double, Double)
 amplitudFirst m y = trackAmplitud y m (1000 :: Double) (-1000 :: Double) where
-  trackAmplitud x n m0 m1 = do
+  trackAmplitud x !n !m0 !m1 = do
     new <- eulerStep x
     let v = varV new
         m0' = min m0 v
         m1' = max m1 v
     if n==0 then return (new, m0', m1') else trackAmplitud new (n-1) m0' m1' 
--}
 
 computeFeatures :: (PrimMonad m) => Variables Double ->  Comp m Features
 computeFeatures x0 = do
   In _ Global{..} _ <- ask
   let sec2n s = round $ s*1000.0/stepSize
       dropFirst s  = applyM (sec2n s) eulerStep
-      trackAmplitud (x, m0, m1) = eulerStep x >>= \new -> return (new, min m0 (varV new), max m1 (varV new))
-      amplitudFirst n x = applyM n trackAmplitud (x, 10000, -10000)
+      -- trackAmplitud (x, m0, m1) = eulerStep x >>= \new -> ( return $! (new, min m0 (varV new), max m1 (varV new)) )
+      -- amplitudFirst n x = applyM n trackAmplitud (x, 10000, -10000)
   -- drop first 5 seconds, compute max V and min V during the next 5 seconds
   (new, m0, m1) <- amplitudFirst (sec2n 5) =<< dropFirst 5 x0
   let th1 = m0 + (m1-m0)*0.5
