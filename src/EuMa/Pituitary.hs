@@ -12,10 +12,10 @@ module EuMa.Pituitary
   , state
   , eulerStep
   , iterateMn
-  , updateSilent
+  , trackSilent
   , compSilent
   , compOscill
-  , getPeakFeatures 
+  , getPeakFeatures
 -- we don't really need to export dotVar, but because of inlineing we *need* to export it
 -- to avoid a big performance penalty
   , dotVar
@@ -26,17 +26,13 @@ import System.Random.MWC (Gen)
 import System.Random.MWC.Distributions (standard)
 import Control.Monad.Primitive (PrimState, PrimMonad)
 import Control.Monad ((>=>))
--- import qualified Control.Fold as Fold
--- import Data.List (foldl')
 
 import EuMa.Types
-
 
 data Env m = In Parameters Global (Gen (PrimState m))
 type Comp m a = ReaderT (Env m) m a
 
-
------------------- State variables S (mostly currents) -----------------------------------------------
+-- State variables S (mostly currents)
 data State = State { stICa    :: Double -- voltage-gated Ca^2+ current
                    , stIK     :: Double -- delayed rectifier K^+ current
                    , stISK    :: Double -- Ca^2+-activated K^+ current
@@ -93,13 +89,12 @@ dotVar v@Variables{..} = do
 -- without inlining here performance degrades 10x
 {-# INLINE dotVar #-}
 
--------------- Euler–Maruyama method to estimate the stochastic differential equation (SDE) ----------
+-- Euler–Maruyama method to estimate the stochastic differential equation (SDE)
 eulerStep :: (PrimMonad m) => Variables Double -> Comp m (Variables Double)
 eulerStep v = do
         In _ Global{..} _ <- ask
         dv <- dotVar v
         return $ (+) . (*stepSize) <$> dv <*> v
-     -- return $ liftA2 (+) v (fmap (stepSize*) dv) -- the same
 {-# INLINABLE eulerStep #-}
 
 iterateMn :: Monad m => Int -> (a -> m a) -> a -> m [a]
@@ -113,23 +108,21 @@ simulate :: (PrimMonad m) => Int -> Variables Double -> Comp m [Variables Double
 simulate n = iterateMn n eulerStep
 {-# INLINABLE simulate #-}
 
-applyM :: Monad m => Int -> (a -> m a) -> a -> m a
-applyM n f = foldr (>=>) return (replicate n f)
-{-# INLINABLE applyM #-}
--- applyM m f x = applyM' m (return x) where
---  applyM' n !x' = let new = x' >>= f  in if n == 1 then new else applyM' (n-1) new
-
-updateSilent :: (PrimMonad m) => (Variables Double, Features) -> Comp m (Variables Double, Features)
-updateSilent (_, Oscillating{..}) = error "unexpected pattern in updateSilent"
-updateSilent (x, Silent s s2 m0 m1 ) = do
-  new <- eulerStep x
-  let v = varV new
-  return (new, Silent (s + v) (s2 + v^(2 :: Int)) (min m0 v) (max m1 v) )
-{-# INLINABLE updateSilent #-}
+trackSilent :: PrimMonad m => Int -> Variables Double -> Comp m Features
+trackSilent m y = trackSilent' y m (0::Double) (0::Double) (1000::Double) (-1000::Double) where
+  trackSilent' x n !s !s2 !m0 !m1 = do
+    new <- eulerStep x
+    let v = varV new
+        s'  = s + v
+        s2' = s2 + v^(2 :: Int)
+        m0' = min m0 v
+        m1' = max m1 v
+    if n==0 then return $ Silent s' s2' m0' m1' else trackSilent' new (n-1) s' s2' m0' m1' 
+{-# INLINABLE trackSilent #-}
 
 compSilent :: (PrimMonad m) => Variables Double -> Int -> Comp m Features
 compSilent x n = do
-  (_, Silent{..} ) <- applyM n updateSilent (x, Silent 0 0 10000 (-10000) )
+  Silent{..}  <- trackSilent n x
   let m = meanV / fromIntegral n
       v = stdV / fromIntegral n - m^(2 :: Int)
   return $ Silent m (sqrt v) minV maxV
@@ -140,10 +133,10 @@ getPeakFeatures y th1 th2 = compfeat y 0 0 where
   compfeat x h0 h1 = do
     new <- eulerStep x
     let v = varV new
-    let res | v >= th1            = compfeat new (h0+1) (h1+1) -- peak starts: count peak duration
-            | v >= th2 && h0 > 0  = compfeat new (h0+1) (h1+1) -- inside peak: add to peak duration
-            | v < th2 && h0 > 0   = return (new, h0, h1)   -- peak ends: start over both counts
-            | otherwise           = compfeat new h0 (h1+1) -- outside peak: count douration between peaks
+    let res | v>=th1         = compfeat new (h0+1) (h1+1) -- peak starts: count peak duration
+            | v>=th2 && h0>0 = compfeat new (h0+1) (h1+1) -- inside peak: add to duration
+            | v< th2 && h0>0 = return (new, h0, h1)   -- peak ends: start over both counts
+            | otherwise      = compfeat new h0 (h1+1) -- outside peak: count duration between peaks
     res
 {-# INLINABLE getPeakFeatures #-}
 
@@ -152,28 +145,14 @@ compOscill :: (PrimMonad m) => Variables Double -> Double -> Double -> Comp m Fe
 compOscill x0 th1 th2 = do
   In _ Global{..} _ <- ask
   let steps2time = map ((stepSize *) . fromIntegral)
-  (peakLengthCounts, btwPeakCounts) <- unzip <$> comph' x0 totalSpikes ([] :: [(Int, Int)]) -- ([(0,0)] :: [(Int,Int)])
+  (peakLengthCounts, btwPeakCounts) <- unzip <$> comph' x0 totalSpikes ([] :: [(Int, Int)])
   let zeros = replicate totalSpikes 0
   return $ Oscillating (steps2time peakLengthCounts) (steps2time btwPeakCounts) zeros zeros zeros
   where comph' x n hh = do
            (new, h0, h1) <- getPeakFeatures x th1 th2
-           if length hh == n then return hh else comph' new n ((h0, h1):hh)
-{- getPeakFeatures solves the most serious memory leaking problem
-  where comph' _ _ [] = error "unexpected pattern in compOscill"
-        comph' x n hh@(h:hs) = do
-           new <- eulerStep x
-           let v = varV new
-               (h0, h1) = h
-               hhh | v >= th1            = (h0+1, h1+1):hs -- peak starts: count peak duration
-                   | v >= th2 && h0 > 0  = (h0+1, h1+1):hs -- inside peak: add to peak duration
-                   | v <  th2 && h0 > 0  = (0,0):hh      -- peak ends: start over both counts
-                   | otherwise           = (h0, h1+1):hs -- outside peak: count douration between peaks
-           if length hhh == (n+3) then return (take n (tail hhh)) else comph' new n hhh
--}
+           if length hh == (n+1) then return (take n hh) else comph' new n ((h0, h1):hh)
 {-# INLINABLE compOscill #-}
 
--- FIXME: Fold and max/min monoids should be used here ?
--- Do not produce memory leakes
 amplitudFirst :: PrimMonad m => Int -> Variables Double -> Comp m (Variables Double, Double, Double)
 amplitudFirst m y = trackAmplitud y m (1000 :: Double) (-1000 :: Double) where
   trackAmplitud x !n !m0 !m1 = do
@@ -184,13 +163,15 @@ amplitudFirst m y = trackAmplitud y m (1000 :: Double) (-1000 :: Double) where
     if n==0 then return (new, m0', m1') else trackAmplitud new (n-1) m0' m1' 
 {-# INLINABLE amplitudFirst #-}
 
+applyM :: Monad m => Int -> (a -> m a) -> a -> m a
+applyM n f = foldr (>=>) return (replicate n f)
+{-# INLINABLE applyM #-}
+
 computeFeatures :: (PrimMonad m) => Variables Double ->  Comp m Features
 computeFeatures x0 = do
   In _ Global{..} _ <- ask
   let sec2n s = round $ s*1000.0/stepSize
       dropFirst s  = applyM (sec2n s) eulerStep
-      -- trackAmplitud (x, m0, m1) = eulerStep x >>= \new -> ( return $! (new, min m0 (varV new), max m1 (varV new)) )
-      -- amplitudFirst n x = applyM n trackAmplitud (x, 10000, -10000)
   -- drop first 5 seconds, compute max V and min V during the next 5 seconds
   (new, m0, m1) <- amplitudFirst (sec2n 5) =<< dropFirst 5 x0
   let th1 = m0 + (m1-m0)*0.5
@@ -199,42 +180,4 @@ computeFeatures x0 = do
   -- or signal statistics (mean, max, etc.) during 5 seconds
   if m1-m0 < 20 then compSilent new (sec2n 5) else compOscill new th1 th2
 {-# INLINABLE computeFeatures #-}
-
-{-
-
--- drop the first 3 spikes to skip transient effects
-lengthSpikes :: (PrimMonad m) => Int -> Variables Double -> Double -> Comp m [Int]
-lengthSpikes  n x0 th = comph' (n+3) x0 [0] where
-  comph' _ _ [] = error "unexpected pattern in lengthSpikes"
-  comph' m x hh@(h:hs) = do
-    new <- eulerStep x
-    let hhh | v>=th        =  (h+1):hs
-            | v<th && h==0 = hh
-            | v<th && h>0  = 0:hh
-            | otherwise = error "unexpected pattern in lengthSpikes"
-            where v = varV new
-    if m==1 then return (take n (clean hhh)) else comph' (m-1) new hhh
-       where clean yy@(y:ys) = if  y == 0 then ys else yy
-             clean [] = error  "unexpected pattern in lengthSpikes"
-{-# INLINABLE lengthSpikes #-}
-
-
--- drop the first 3 spikes to skip transient effects
-lengthSpikesUpTo :: (PrimMonad m) => Int -> Variables Double -> Double -> Comp m [Int]
-lengthSpikesUpTo n x0 th = comph' x0 [0] where
-  comph' _ [] = error "unexpected pattern in lengthSpikesUpTo"
-  comph' x hh@(h:hs) = do
-    new <- eulerStep x
-    let hhh | v>=th        =  (h+1):hs
-            | v<th && h==0 = hh
-            | v<th && h>0  = 0:hh
-            | otherwise = error "unexpected pattern in lengthSpikesUpTo"
-            where v = varV new
-    if length hhh == (n+3) then return (take n (clean hhh)) else comph' new hhh
-       where clean yy@(y:ys) = if  y == 0 then ys else yy
-             clean [] = error  "unexpected pattern in lengthSpikes"
-{-# INLINABLE lengthSpikesUpTo #-}
-
--}
-
 
