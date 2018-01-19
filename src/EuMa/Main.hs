@@ -110,18 +110,21 @@ main :: IO ()
 main = parseCmdLine >>= doMain
 
 {-
+-- for testing in REPL
 
-import Data.List.Split
-import Data.List
-import Data.Vector (fromList)
-import Statistics.Sample
-
-import Options.Applicative
 gen  <- createSystemRandom
-params <-  execParser (info  parametersParser fullDesc )
-global <-  execParser (info  globalParser  fullDesc )
 
-traj <-  runReaderT (simulate (totalSteps global) initVar) $ In (params {gbk = 0, noise = 100})  global gen
+Just options =  stringsToOptions  ["curves"]
+
+Curves  params =  optCommand options
+global =  optGlobals options
+
+traj <- curves gen global params
+
+(t, x, _, _, _, _) =  traj
+
+traj2 <- runReaderT (simulate (totalSteps global) initVar) $ In params global gen
+x2 = fmap varV traj2
+t2 = fmap ((* stepSize global ) . fromIntegral ) [1..(totalSteps global )]
 
 -}
-
