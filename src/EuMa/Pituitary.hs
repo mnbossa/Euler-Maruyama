@@ -130,8 +130,8 @@ compSilent x n = do
 {-# INLINABLE compSilent #-}
 
 getPeakFeatures :: (PrimMonad m) => Variables Double -> Double -> Double -> Comp m (Variables Double, Int, Int, Double, Double)
-getPeakFeatures y th1 th2 = compfeat y 0 0 th2 th1 0 where
-  compfeat x h0 h1 m0 m1 a = do
+getPeakFeatures y th1 th2 = compfeat y 0 0 (-1000) (1000) 0 where
+  compfeat x h0 h1 !m0 !m1 !a = do
     new <- eulerStep x
     let v = varV new
         m0' = max v m0
@@ -160,7 +160,7 @@ compOscill x0 th1 th2 = do
 
 amplitudFirst :: PrimMonad m => Int -> Variables Double -> Comp m (Variables Double, Double, Double)
 amplitudFirst m y = trackAmplitud y m (1000 :: Double) (-1000 :: Double) where
-  trackAmplitud x !n !m0 !m1 = do
+  trackAmplitud x n !m0 !m1 = do
     new <- eulerStep x
     let v = varV new
         m0' = min m0 v
