@@ -6,7 +6,7 @@ module EuMa.Main
   (main, doMain, peaks, curves, multi, mkRandomGenerator, MultiCurveRecord(..))
 where
 
-import Data.List (zip5, zip6)
+import Data.List (zip6)
 -- import System.Environment --args <- getArgs
 import System.Random.MWC (createSystemRandom, Gen, initialize)
 import Control.Monad.Trans.Reader (runReaderT)
@@ -38,7 +38,7 @@ peaks gen global parameters = runReaderT (computeFeatures initVar ) (In paramete
 -- FIXME: what should return when computing several curves at a time?
 peaks1 :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m [Double]
 peaks1 gen global param = do
-   Oscillating r _ _ _ _ <- peaks gen global param 
+   Oscillating r _ _ _ _ _ <- peaks gen global param
    return r
 
 curves :: PrimMonad m => Gen (PrimState m) -> Global -> Parameters -> m ([Double],[Double],[Double],[Double],[Double], [Double])
@@ -102,8 +102,7 @@ doMain Options{optCommand = command, optGlobals = globals} = do
 
   where
     unzip6 (t,varV,varn,varb,varh,varCa) = zip6 t varV varn varb varh varCa
-    unzip5 (x1, x2, x3, x4, x5) = zip5 x1 x2 x3 x4 x5
-    encodeFeat Oscillating{..} = encode . unzip5 $ ( duration, pptime, amplitude , area, nlocmax)
+    encodeFeat Oscillating{..} = encode . unzip6 $ ( duration, pptime, amplitude , area, minSlope, maxSlope)
     encodeFeat Silent{..}      = encode [(meanV, stdV, maxV, minV)]
 
 main :: IO ()

@@ -87,6 +87,7 @@ data Features = Silent      { meanV :: Double
                             , maxV :: Double }       |
                 Oscillating { duration :: [Double]  -- duration of active phase
                             , pptime :: [Double]    -- time since last peak
-                            , amplitude :: [Double] -- (fixme TBD!) max V - min V
-                            , area :: [Double]      -- (fixme TBD!) area under V cruve and threashold
-                            , nlocmax :: [Double] } -- (fixme TBD!) number of local maxima
+                            , amplitude :: [Double] -- max V - min V
+                            , area :: [Double]      -- area under V cruve and threashold
+                            , minSlope :: [Double]
+                            , maxSlope :: [Double] }

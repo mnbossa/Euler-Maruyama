@@ -26,7 +26,7 @@ import System.Random.MWC (Gen)
 import System.Random.MWC.Distributions (standard)
 import Control.Monad.Primitive (PrimState, PrimMonad)
 import Control.Monad ((>=>))
-import Data.List (unzip4)
+import Data.List (unzip6)
 
 import EuMa.Types
 
@@ -129,18 +129,22 @@ compSilent x n = do
   return $ Silent m (sqrt v) minV maxV
 {-# INLINABLE compSilent #-}
 
-getPeakFeatures :: (PrimMonad m) => Variables Double -> Double -> Double -> Comp m (Variables Double, Int, Int, Double, Double)
-getPeakFeatures y th1 th2 = compfeat y 0 0 (-1000) (1000) 0 where
-  compfeat x h0 h1 !m0 !m1 !a = do
+getPeakFeatures :: (PrimMonad m) => Variables Double -> Double -> Double -> Comp m (Variables Double, Int, Int, Double, Double, Double, Double)
+getPeakFeatures y th1 th2 = compfeat y 0 0 (-1000) (1000) 0 0 0 0 where
+  compfeat x h0 h1 !m0 !m1 !a !dv !dvf0 !dvf1 = do
     new <- eulerStep x
     let v = varV new
         m0' = max v m0
         m1' = min v m1
         a' = a + max 0 (v - th2)
-    let res | v>=th1         = compfeat new (h0+1) (h1+1) m0' m1' a' -- peak starts: count peak duration
-            | v>=th2 && h0>0 = compfeat new (h0+1) (h1+1) m0' m1' a'  -- inside peak: add to duration
-            | v< th2 && h0>0 = return (new, h0, h1, m0' - m1', a')   -- peak ends: start over both counts
-            | otherwise      = compfeat new h0 (h1+1) m0' m1' a'  -- outside peak: count duration between peaks
+        dv' = (v - varV x)
+        dvf = 0.1*dv' + 0.9*dv
+        dvf0' = min dvf dvf0
+        dvf1' = max dvf dvf1
+    let res | v>=th1         = compfeat new (h0+1) (h1+1) m0' m1'  a' dv' dvf0'  dvf1'  -- peak starts
+            | v>=th2 && h0>0 = compfeat new (h0+1) (h1+1) m0' m1'  a' dv' dvf0'  dvf1'  -- inside peak
+            | v< th2 && h0>0 = return  (new, h0,    h1,   m0'-m1', a',    dvf0', dvf1') -- peak ends
+            | otherwise      = compfeat new  h0    (h1+1) m0' m1'  a' dv' dvf0'  dvf1'  -- outside peak
     res
 {-# INLINABLE getPeakFeatures #-}
 
@@ -150,12 +154,12 @@ compOscill x0 th1 th2 = do
   In _ Global{..} _ <- ask
   let steps2time = map ((stepSize *) . fromIntegral)
       sum2area = map ((stepSize *))
-  (peakLengthCounts, btwPeakCounts, amplitude, area) <- unzip4 <$> comph' x0 totalSpikes ([] :: [(Int, Int, Double, Double)])
-  let zeros = replicate totalSpikes 0
-  return $ Oscillating (steps2time peakLengthCounts) (steps2time btwPeakCounts) amplitude (sum2area area) zeros
+      diff2slope = map ((/ stepSize))
+  (peakLengthCounts, btwPeakCounts, amplitude, area, minSlope, maxSlope) <- unzip6 <$> comph' x0 totalSpikes ([] :: [(Int, Int, Double, Double, Double, Double)])
+  return $ Oscillating (steps2time peakLengthCounts) (steps2time btwPeakCounts) amplitude (sum2area area) (diff2slope minSlope) (diff2slope maxSlope)
   where comph' x n hh = do
-           (new, h0, h1, dv, a) <- getPeakFeatures x th1 th2
-           if length hh == (n+1) then return (take n hh) else comph' new n ((h0, h1, dv, a):hh)
+           (new, lengthPeak, lengthEvent, heightPeak, areaPeak, minSlope, maxSlope) <- getPeakFeatures x th1 th2
+           if length hh == (n+1) then return (take n hh) else comph' new n ((lengthPeak, lengthEvent, heightPeak, areaPeak, minSlope, maxSlope):hh)
 {-# INLINABLE compOscill #-}
 
 amplitudFirst :: PrimMonad m => Int -> Variables Double -> Comp m (Variables Double, Double, Double)
